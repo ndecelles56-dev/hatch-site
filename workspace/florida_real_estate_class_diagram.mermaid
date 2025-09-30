@@ -1,0 +1,211 @@
+classDiagram
+    class User {
+        +id: string
+        +email: string
+        +role: UserRole
+        +licenseNumber: string
+        +brokerageId: string
+        +profile: UserProfile
+        +permissions: Permission[]
+        +createdAt: Date
+        +updatedAt: Date
+        +authenticate(password: string): boolean
+        +hasPermission(permission: string): boolean
+        +updateProfile(profile: UserProfile): void
+    }
+
+    class Brokerage {
+        +id: string
+        +name: string
+        +licenseNumber: string
+        +address: Address
+        +contactInfo: ContactInfo
+        +agents: User[]
+        +settings: BrokerageSettings
+        +complianceConfig: ComplianceConfig
+        +addAgent(agent: User): void
+        +removeAgent(agentId: string): void
+        +updateSettings(settings: BrokerageSettings): void
+    }
+
+    class Property {
+        +id: string
+        +mlsNumber: string
+        +address: Address
+        +propertyType: PropertyType
+        +details: PropertyDetails
+        +pricing: PropertyPricing
+        +status: PropertyStatus
+        +images: PropertyImage[]
+        +disclosures: Disclosure[]
+        +taxInfo: TaxAssessment
+        +repairEstimates: RepairEstimate[]
+        +createdAt: Date
+        +updatedAt: Date
+        +updateFromMLS(mlsData: MLSData): void
+        +generateDisclosures(): Disclosure[]
+        +calculateTaxes(): TaxCalculation
+    }
+
+    class Transaction {
+        +id: string
+        +propertyId: string
+        +buyerAgentId: string
+        +sellerAgentId: string
+        +buyerId: string
+        +sellerId: string
+        +status: TransactionStatus
+        +timeline: TransactionMilestone[]
+        +contracts: Contract[]
+        +documents: Document[]
+        +complianceChecks: ComplianceCheck[]
+        +createdAt: Date
+        +updatedAt: Date
+        +addMilestone(milestone: TransactionMilestone): void
+        +generateContract(template: ContractTemplate): Contract
+        +validateCompliance(): ComplianceResult
+        +updateStatus(status: TransactionStatus): void
+    }
+
+    class Contract {
+        +id: string
+        +transactionId: string
+        +templateId: string
+        +type: ContractType
+        +parties: ContractParty[]
+        +terms: ContractTerms
+        +signatures: Signature[]
+        +status: ContractStatus
+        +docusignEnvelopeId: string
+        +auditTrail: AuditEntry[]
+        +createdAt: Date
+        +updatedAt: Date
+        +generateFromTemplate(data: ContractData): void
+        +sendForSignature(): void
+        +validateLegalCompliance(): ComplianceResult
+        +addSignature(signature: Signature): void
+    }
+
+    class MLSIntegration {
+        +id: string
+        +mlsProvider: string
+        +apiEndpoint: string
+        +credentials: APICredentials
+        +lastSyncTime: Date
+        +syncStatus: SyncStatus
+        +dataMapping: FieldMapping[]
+        +connect(): boolean
+        +syncProperties(): Property[]
+        +normalizeData(rawData: any): Property
+        +handleErrors(error: Error): void
+    }
+
+    class CRMIntegration {
+        +id: string
+        +crmProvider: string
+        +apiEndpoint: string
+        +credentials: APICredentials
+        +fieldMappings: FieldMapping[]
+        +syncSettings: SyncSettings
+        +lastSyncTime: Date
+        +connect(): boolean
+        +syncContacts(): Contact[]
+        +syncLeads(): Lead[]
+        +bidirectionalSync(): void
+        +resolveConflicts(conflicts: DataConflict[]): void
+    }
+
+    class ComplianceEngine {
+        +id: string
+        +rules: ComplianceRule[]
+        +templates: FormTemplate[]
+        +auditConfig: AuditConfig
+        +validateTransaction(transaction: Transaction): ComplianceResult
+        +generateRequiredForms(property: Property): Document[]
+        +checkDisclosureRequirements(property: Property): Disclosure[]
+        +createAuditTrail(action: string, userId: string, data: any): AuditEntry
+        +generateComplianceReport(): ComplianceReport
+    }
+
+    class DocumentService {
+        +id: string
+        +storage: StorageProvider
+        +encryption: EncryptionService
+        +templates: DocumentTemplate[]
+        +uploadDocument(file: File, metadata: DocumentMetadata): Document
+        +generateDocument(templateId: string, data: any): Document
+        +signDocument(documentId: string, signers: Signer[]): SigningSession
+        +retrieveDocument(documentId: string): Document
+        +deleteDocument(documentId: string): boolean
+    }
+
+    class NotificationService {
+        +id: string
+        +channels: NotificationChannel[]
+        +templates: NotificationTemplate[]
+        +sendNotification(userId: string, message: Notification): void
+        +sendBulkNotification(userIds: string[], message: Notification): void
+        +scheduleNotification(notification: Notification, scheduleTime: Date): void
+        +trackDelivery(notificationId: string): DeliveryStatus
+    }
+
+    class AnalyticsService {
+        +id: string
+        +dataWarehouse: DataWarehouse
+        +reports: Report[]
+        +dashboards: Dashboard[]
+        +generateMarketReport(criteria: ReportCriteria): MarketReport
+        +calculatePropertyMetrics(propertyId: string): PropertyMetrics
+        +trackUserActivity(userId: string, activity: UserActivity): void
+        +createCustomDashboard(userId: string, config: DashboardConfig): Dashboard
+    }
+
+    class SearchService {
+        +id: string
+        +elasticsearch: ElasticsearchClient
+        +indices: SearchIndex[]
+        +searchProperties(criteria: SearchCriteria): SearchResult[]
+        +indexProperty(property: Property): void
+        +updateIndex(propertyId: string, updates: any): void
+        +deleteFromIndex(propertyId: string): void
+        +suggestProperties(query: string): PropertySuggestion[]
+    }
+
+    class TaxService {
+        +id: string
+        +assessorAPIs: AssessorAPI[]
+        +taxCalculator: TaxCalculator
+        +getPropertyTaxInfo(propertyId: string): TaxAssessment
+        +calculateProration(property: Property, closingDate: Date): TaxProration
+        +checkAssessmentAccuracy(property: Property): AccuracyReport
+        +updateTaxData(propertyId: string): void
+    }
+
+    class RepairEstimationService {
+        +id: string
+        +costDatabases: CostDatabase[]
+        +aiAnalyzer: AIAnalyzer
+        +contractorNetwork: ContractorNetwork
+        +estimateRepairCosts(property: Property, photos: Image[]): RepairEstimate
+        +analyzePropertyCondition(images: Image[]): ConditionReport
+        +getContractorQuotes(repairItems: RepairItem[]): Quote[]
+        +updateCostDatabase(actualCosts: ActualCost[]): void
+    }
+
+    %% Relationships
+    User ||--o{ Transaction : manages
+    User }o--|| Brokerage : belongs_to
+    Property ||--o{ Transaction : involves
+    Transaction ||--o{ Contract : contains
+    Transaction ||--o{ Document : includes
+    Contract ||--o{ Signature : requires
+    Property ||--o{ Disclosure : has
+    Property ||--|| TaxAssessment : assessed_for
+    Property ||--o{ RepairEstimate : estimated_for
+    MLSIntegration ||--o{ Property : syncs
+    CRMIntegration ||--o{ User : syncs
+    ComplianceEngine ||--o{ ComplianceRule : enforces
+    DocumentService ||--o{ Document : manages
+    SearchService ||--o{ Property : indexes
+    TaxService ||--|| Property : assesses
+    RepairEstimationService ||--|| Property : estimates

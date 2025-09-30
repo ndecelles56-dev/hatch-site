@@ -1,0 +1,53 @@
+Field,Value
+MLSNumber,B7654321
+Status,Active
+ListPrice,429000
+OriginalListPrice,439000
+ListingDate,2025-09-28
+ExpirationDate,2026-02-28
+StreetAddress,1890 Palm Breeze Dr
+City,Naples
+State,FL
+ZIP,34112
+County,Collier
+Subdivision,Palm Breeze Villas
+ParcelID,12-47-25-0000-67890.0000
+LegalDescription,PALM BREEZE VILLAS BLK C LOT 5
+PropertyCategory,Residential
+PropertySubtype,Townhouse
+ArchitecturalStyle,Coastal Contemporary
+Stories,2
+YearBuilt,2015
+LivingAreaSqFt,1785
+LotSizeAcres,0.12
+LotSizeSqFt,5227
+BedroomsTotal,3
+BathroomsTotal,3
+BathroomsFull,2
+BathroomsHalf,1
+GarageSpaces,1
+GarageType,Attached
+Pool,Community Pool
+Flooring,"Carpet, Tile"
+Appliances,"Dishwasher, Disposal, Microwave, Range, Refrigerator"
+KitchenFeatures,"Quartz Counters, Breakfast Bar, Pantry"
+PrimarySuite,"Walk-In Closet, Ensuite Bath w/ Glass Shower"
+Laundry,Laundry Closet Upstairs
+Construction,"Concrete Block, Stucco"
+Roof,Shingle
+Foundation,Slab
+ExteriorFeatures,"Screened Lanai, Gated Entry"
+View,Lake View
+WaterSource,Public
+Sewer,Public Sewer
+Cooling,Central Electric
+Heating,Electric
+TaxesAnnual,3920
+TaxYear,2024
+ListingAgentName,John Smith
+ListingAgentLicense,SL789012
+ListingOfficeName,Hatch Realty
+ListingOfficeLicense,CQ987654
+PublicRemarks,Charming 3BR/2.5BA townhouse in gated Palm Breeze Villas with lake views and access to community pool.
+BrokerRemarks,"Tenant occupied, 24-hour notice required for showings."
+PhotoURLs,https://example.com/photo3.jpg;https://example.com/photo4.jpg

@@ -1,0 +1,137 @@
+sequenceDiagram
+    participant U as User
+    participant API as API Gateway
+    participant Auth as Auth Service
+    participant Prop as Property Service
+    participant MLS as MLS Integration
+    participant Comp as Compliance Engine
+    participant Doc as Document Service
+    participant DS as DocuSign API
+    participant CRM as CRM Integration
+    participant Search as Search Service
+    participant Tax as Tax Service
+    participant Repair as Repair Service
+    participant Notify as Notification Service
+    participant Analytics as Analytics Service
+
+    %% User Authentication Flow
+    U->>API: POST /auth/login
+    API->>Auth: authenticate(credentials)
+    Auth->>Auth: validateCredentials()
+    Auth->>Auth: generateJWT()
+    Auth-->>API: JWT token
+    API-->>U: Authentication response
+
+    %% Property Search Flow
+    U->>API: GET /properties/search
+    API->>Auth: validateToken()
+    API->>Search: searchProperties(criteria)
+    Search->>Search: queryElasticsearch()
+    Search->>Prop: getPropertyDetails(ids)
+    Prop->>Tax: getTaxInfo(propertyId)
+    Tax->>Tax: fetchFromAssessor()
+    Tax-->>Prop: tax assessment data
+    Prop-->>Search: enriched property data
+    Search-->>API: search results
+    API-->>U: property listings
+
+    %% MLS Data Synchronization Flow
+    MLS->>MLS: scheduledSync()
+    MLS->>MLS: connectToMLSAPI()
+    MLS->>MLS: fetchUpdatedProperties()
+    MLS->>MLS: normalizeData()
+    MLS->>Prop: updateProperty(propertyData)
+    Prop->>Comp: validateCompliance(property)
+    Comp->>Comp: checkDisclosureRequirements()
+    Comp-->>Prop: compliance status
+    Prop->>Search: indexProperty(property)
+    Search->>Search: updateElasticsearchIndex()
+    Prop->>Notify: sendUpdateNotification()
+    Notify->>U: property update notification
+
+    %% Transaction Creation Flow
+    U->>API: POST /transactions
+    API->>Auth: validateToken()
+    API->>Prop: getProperty(propertyId)
+    Prop-->>API: property details
+    API->>Comp: validateTransactionRequirements()
+    Comp->>Comp: checkLegalRequirements()
+    Comp->>Comp: generateRequiredDisclosures()
+    Comp-->>API: compliance checklist
+    API->>API: createTransaction()
+    API->>CRM: syncTransactionData()
+    CRM->>CRM: updateCRMRecords()
+    API->>Notify: sendTransactionNotification()
+    Notify->>U: transaction created notification
+    API-->>U: transaction details
+
+    %% Contract Generation Flow
+    U->>API: POST /contracts/generate
+    API->>Auth: validateToken()
+    API->>Doc: generateContract(templateId, data)
+    Doc->>Comp: validateContractCompliance()
+    Comp->>Comp: checkFloridaLegalRequirements()
+    Comp-->>Doc: compliance validation
+    Doc->>Doc: populateTemplate()
+    Doc->>DS: createEnvelope()
+    DS->>DS: addSigners()
+    DS->>DS: addDocuments()
+    DS-->>Doc: envelope ID
+    Doc->>Doc: saveContract()
+    Doc->>Notify: sendSigningNotification()
+    Notify->>U: contract ready for signature
+    Doc-->>API: contract details
+    API-->>U: contract generation response
+
+    %% Repair Estimation Flow
+    U->>API: POST /properties/repair-estimate
+    API->>Auth: validateToken()
+    API->>Repair: estimateRepairCosts(propertyId, photos)
+    Repair->>Repair: analyzePhotos()
+    Repair->>Repair: queryContractorNetwork()
+    Repair->>Repair: calculateCostRanges()
+    Repair->>Analytics: trackEstimateAccuracy()
+    Analytics->>Analytics: updateMLModels()
+    Repair-->>API: repair estimate
+    API-->>U: cost breakdown
+
+    %% Compliance Monitoring Flow
+    Comp->>Comp: scheduledComplianceCheck()
+    Comp->>Prop: getAllActiveTransactions()
+    Prop-->>Comp: transaction list
+    loop For each transaction
+        Comp->>Comp: validateTransactionCompliance()
+        Comp->>Doc: checkDocumentCompleteness()
+        Doc-->>Comp: document status
+        Comp->>Comp: identifyComplianceGaps()
+        alt Compliance issues found
+            Comp->>Notify: sendComplianceAlert()
+            Notify->>U: compliance notification
+        end
+    end
+    Comp->>Analytics: generateComplianceReport()
+    Analytics->>Analytics: updateComplianceMetrics()
+
+    %% Market Analytics Flow
+    U->>API: GET /analytics/market-report
+    API->>Auth: validateToken()
+    API->>Analytics: generateMarketReport(criteria)
+    Analytics->>Prop: getMarketData()
+    Analytics->>Tax: getTaxTrends()
+    Analytics->>Analytics: calculateMetrics()
+    Analytics->>Analytics: generateVisualizations()
+    Analytics-->>API: market report
+    API-->>U: analytics dashboard
+
+    %% Error Handling Flow
+    alt API Error
+        API->>API: logError()
+        API->>Notify: sendErrorAlert()
+        API-->>U: error response
+    end
+
+    %% Audit Trail Flow
+    Note over API, Analytics: All operations create audit entries
+    API->>Comp: createAuditEntry(action, userId, data)
+    Comp->>Comp: encryptAuditData()
+    Comp->>Comp: storeAuditEntry()

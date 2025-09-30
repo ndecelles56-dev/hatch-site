@@ -1,0 +1,227 @@
+classDiagram
+    class Firm {
+        +UUID id
+        +string name
+        +string slug
+        +string stripe_customer_id
+        +string stripe_subscription_id
+        +SubscriptionStatus subscription_status
+        +PricingTier tier
+        +int seats_purchased
+        +int seats_used
+        +Date current_period_start
+        +Date current_period_end
+        +Date trial_end
+        +Date created_at
+        +Date updated_at
+        +createFirm(name: string, ownerId: string) Firm
+        +updateSubscription(tier: PricingTier) void
+        +checkSeatAvailability() boolean
+        +incrementSeatsUsed() void
+        +decrementSeatsUsed() void
+    }
+
+    class FirmMembership {
+        +UUID id
+        +UUID firm_id
+        +UUID user_id
+        +FirmRole role
+        +MembershipStatus status
+        +UUID invited_by
+        +string invitation_token
+        +Date invitation_expires_at
+        +Date invited_at
+        +Date joined_at
+        +JSON permissions
+        +Date created_at
+        +Date updated_at
+        +createMembership(firmId: string, userId: string, role: FirmRole) FirmMembership
+        +updateRole(role: FirmRole) void
+        +activate() void
+        +suspend() void
+    }
+
+    class AgentInvitation {
+        +UUID id
+        +UUID firm_id
+        +UUID invited_by
+        +string email
+        +FirmRole role
+        +string token
+        +InvitationStatus status
+        +Date expires_at
+        +Date accepted_at
+        +UUID accepted_by
+        +JSON invitation_data
+        +Date created_at
+        +createInvitation(firmId: string, email: string, role: FirmRole) AgentInvitation
+        +accept(userId: string) FirmMembership
+        +expire() void
+        +revoke() void
+        +isValid() boolean
+    }
+
+    class SubscriptionEvent {
+        +UUID id
+        +UUID firm_id
+        +string event_type
+        +string stripe_event_id
+        +JSON previous_data
+        +JSON new_data
+        +Date processed_at
+        +Date created_at
+        +logEvent(firmId: string, eventType: string, data: JSON) SubscriptionEvent
+    }
+
+    class BillingHistory {
+        +UUID id
+        +UUID firm_id
+        +string stripe_invoice_id
+        +string stripe_payment_intent_id
+        +int amount_total
+        +int amount_paid
+        +string currency
+        +string status
+        +Date period_start
+        +Date period_end
+        +string invoice_url
+        +Date created_at
+        +createInvoice(firmId: string, stripeInvoiceId: string, amount: int) BillingHistory
+    }
+
+    class FeaturePermission {
+        +UUID id
+        +string feature_key
+        +PricingTier tier
+        +FirmRole role
+        +boolean is_enabled
+        +int usage_limit
+        +Date created_at
+        +checkPermission(feature: string, tier: PricingTier, role: FirmRole) boolean
+        +getUsageLimit(feature: string, tier: PricingTier) int
+    }
+
+    class PricingPlan {
+        +PricingTier id
+        +string name
+        +int price
+        +string currency
+        +string billing_interval
+        +string stripe_price_id
+        +PlanFeature[] features
+        +PlanLimits limits
+        +getPlans() PricingPlan[]
+        +getPlan(tier: PricingTier) PricingPlan
+        +compareFeatures(tierA: PricingTier, tierB: PricingTier) FeatureComparison
+    }
+
+    class StripeService {
+        -Stripe stripe
+        +createCheckoutSession(params: CheckoutParams) StripeCheckoutSession
+        +updateSubscription(subscriptionId: string, params: UpdateParams) StripeSubscription
+        +createPortalSession(customerId: string, returnUrl: string) StripePortalSession
+        +cancelSubscription(subscriptionId: string) void
+        +retrieveSubscription(subscriptionId: string) StripeSubscription
+    }
+
+    class StripeWebhookHandler {
+        -StripeService stripeService
+        -SubscriptionService subscriptionService
+        +handleWebhook(event: StripeEvent) void
+        +handleSubscriptionCreated(subscription: StripeSubscription) void
+        +handleSubscriptionUpdated(subscription: StripeSubscription) void
+        +handleSubscriptionDeleted(subscription: StripeSubscription) void
+        +handlePaymentSucceeded(invoice: StripeInvoice) void
+        +handlePaymentFailed(invoice: StripeInvoice) void
+    }
+
+    class SubscriptionService {
+        -Database db
+        +createFirm(params: CreateFirmParams) Firm
+        +getFirm(firmId: string) Firm
+        +updateFirmSubscription(firmId: string, params: UpdateSubscriptionParams) void
+        +inviteAgent(params: InviteAgentParams) AgentInvitation
+        +acceptInvitation(token: string, userId: string) FirmMembership
+        +removeMember(membershipId: string) void
+        +updateMemberRole(membershipId: string, role: FirmRole) void
+        +checkSeatAvailability(firmId: string) boolean
+    }
+
+    class PermissionService {
+        -Database db
+        -RedisCache cache
+        +checkPermission(params: PermissionCheck) PermissionResult
+        +checkBulkPermissions(checks: PermissionCheck[]) PermissionResult[]
+        +getFeaturePermissions(tier: PricingTier, role: FirmRole) FeaturePermission[]
+        +createPermissionMiddleware(featureKey: string) Middleware
+        +invalidateCache(userId: string) void
+    }
+
+    class PricingController {
+        -SubscriptionService subscriptionService
+        -StripeService stripeService
+        -PermissionService permissionService
+        +getPlans() PricingPlan[]
+        +createCheckoutSession(req: Request, res: Response) void
+        +getCurrentSubscription(req: Request, res: Response) void
+        +upgradeSubscription(req: Request, res: Response) void
+        +cancelSubscription(req: Request, res: Response) void
+        +getBillingPortal(req: Request, res: Response) void
+    }
+
+    class AgentController {
+        -SubscriptionService subscriptionService
+        -EmailService emailService
+        +inviteAgent(req: Request, res: Response) void
+        +listInvitations(req: Request, res: Response) void
+        +acceptInvitation(req: Request, res: Response) void
+        +revokeInvitation(req: Request, res: Response) void
+        +listAgents(req: Request, res: Response) void
+        +updateAgentRole(req: Request, res: Response) void
+        +removeAgent(req: Request, res: Response) void
+    }
+
+    class BillingController {
+        -SubscriptionService subscriptionService
+        -StripeService stripeService
+        +getBillingDashboard(req: Request, res: Response) void
+        +getUsageMetrics(req: Request, res: Response) void
+        +getInvoiceHistory(req: Request, res: Response) void
+        +downloadInvoice(req: Request, res: Response) void
+    }
+
+    class WebhookController {
+        -StripeWebhookHandler webhookHandler
+        +handleStripeWebhook(req: Request, res: Response) void
+        +verifyWebhookSignature(req: Request) boolean
+    }
+
+    %% Relationships
+    Firm ||--o{ FirmMembership : "has members"
+    Firm ||--o{ AgentInvitation : "has invitations"
+    Firm ||--o{ SubscriptionEvent : "has events"
+    Firm ||--o{ BillingHistory : "has billing history"
+    
+    FirmMembership }o--|| User : "belongs to user"
+    AgentInvitation }o--|| User : "invited by user"
+    
+    PricingPlan ||--o{ FeaturePermission : "defines permissions"
+    
+    StripeService --o StripeWebhookHandler : "uses"
+    SubscriptionService --o StripeWebhookHandler : "uses"
+    
+    SubscriptionService --o PricingController : "uses"
+    StripeService --o PricingController : "uses"
+    PermissionService --o PricingController : "uses"
+    
+    SubscriptionService --o AgentController : "uses"
+    SubscriptionService --o BillingController : "uses"
+    StripeService --o BillingController : "uses"
+    
+    StripeWebhookHandler --o WebhookController : "uses"
+    
+    Firm --o SubscriptionService : "managed by"
+    FirmMembership --o SubscriptionService : "managed by"
+    AgentInvitation --o SubscriptionService : "managed by"
+    
+    FeaturePermission --o PermissionService : "managed by"

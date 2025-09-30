@@ -1,0 +1,55 @@
+import React from 'react'
+import { Outlet } from 'react-router-dom'
+import BrokerSidebar from './BrokerSidebar'
+import { Button } from '@/components/ui/button'
+import { useNavigate } from 'react-router-dom'
+import { Home, ExternalLink } from 'lucide-react'
+
+interface BrokerLayoutProps {
+  showBackButton?: boolean
+}
+
+export default function BrokerLayout({ showBackButton = false }: BrokerLayoutProps) {
+  const navigate = useNavigate()
+
+  return (
+    <div className="flex h-screen bg-gray-100">
+      <BrokerSidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <Home className="h-6 w-6 text-blue-600 mr-2" />
+              <h1 className="text-xl font-semibold text-gray-900">Hatch Broker Portal</h1>
+            </div>
+            
+            {/* Public Site Navigation */}
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/')}
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 border-gray-300"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span>View Public Site</span>
+              </Button>
+              
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <span className="text-blue-600 font-medium">JD</span>
+                </div>
+                <span>John Doe</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  )
+}

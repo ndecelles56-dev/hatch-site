@@ -1,0 +1,232 @@
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant PC as PricingController
+    participant SS as SubscriptionService
+    participant StS as StripeService
+    participant DB as Database
+    participant Stripe as Stripe API
+    participant WH as WebhookHandler
+    participant ES as EmailService
+
+    Note over U, ES: Subscription Creation Flow
+    U->>FE: Visit /pricing page
+    FE->>PC: GET /api/pricing/plans
+    PC->>SS: getAvailablePlans()
+    SS-->>PC: PricingPlan[]
+    PC-->>FE: Plans data
+    FE->>U: Display pricing tiers
+
+    U->>FE: Click "Get Started" (Basic Plan)
+    FE->>PC: POST /api/subscriptions/checkout
+    PC->>SS: checkUserEligibility(userId)
+    SS->>DB: SELECT user, firm data
+    DB-->>SS: User eligibility status
+    
+    alt User has no firm
+        SS->>DB: INSERT new firm (inactive)
+        DB-->>SS: Firm created
+        SS->>DB: INSERT firm_membership (primary_broker)
+        DB-->>SS: Membership created
+    end
+    
+    PC->>StS: createCheckoutSession(priceId, metadata)
+    StS->>Stripe: Create checkout session
+    Stripe-->>StS: Session URL & ID
+    StS-->>PC: CheckoutSession
+    PC-->>FE: Checkout session data
+    FE->>U: Redirect to Stripe Checkout
+
+    U->>Stripe: Complete payment
+    Stripe->>WH: POST /webhooks/stripe (subscription.created)
+    WH->>StS: verifyWebhookSignature()
+    StS-->>WH: Signature valid
+    WH->>SS: handleSubscriptionCreated(subscription)
+    SS->>DB: UPDATE firm SET subscription_status='active'
+    SS->>DB: UPDATE firm SET tier='basic', seats_purchased=25
+    DB-->>SS: Firm updated
+    SS->>ES: sendWelcomeEmail(userId, firmId)
+    ES-->>SS: Email sent
+    WH-->>Stripe: 200 OK
+
+    Stripe->>U: Redirect to success page
+    U->>FE: Return to platform
+    FE->>PC: GET /api/subscriptions/current
+    PC->>SS: getCurrentSubscription(userId)
+    SS->>DB: SELECT firm, membership data
+    DB-->>SS: Subscription data
+    SS-->>PC: SubscriptionResponse
+    PC-->>FE: Current subscription
+    FE->>U: Show broker dashboard access
+
+    Note over U, ES: Agent Invitation Flow
+    U->>FE: Navigate to /broker/team
+    FE->>PC: GET /api/agents/list
+    PC->>SS: getTeamMembers(firmId)
+    SS->>DB: SELECT firm_memberships with user data
+    DB-->>SS: Team members list
+    SS-->>PC: Team data
+    PC-->>FE: Current team members
+    FE->>U: Display team management
+
+    U->>FE: Click "Invite Agent"
+    FE->>U: Show invite form
+    U->>FE: Submit (email: "agent@example.com", role: "agent")
+    FE->>PC: POST /api/invitations/create
+    PC->>SS: checkSeatAvailability(firmId)
+    SS->>DB: SELECT seats_used, seats_purchased FROM firms
+    DB-->>SS: Seat availability data
+    
+    alt Seats available
+        SS->>DB: INSERT agent_invitation
+        DB-->>SS: Invitation created
+        SS->>ES: sendInvitationEmail(email, token, firmName)
+        ES-->>SS: Email sent
+        SS-->>PC: Invitation success
+        PC-->>FE: Invitation sent
+        FE->>U: Success message
+        
+        ES->>Agent: Email with invitation link
+        Agent->>FE: Click invitation link
+        FE->>PC: GET /api/invitations/validate/{token}
+        PC->>SS: validateInvitation(token)
+        SS->>DB: SELECT invitation WHERE token AND status='pending'
+        DB-->>SS: Valid invitation data
+        SS-->>PC: Invitation valid
+        PC-->>FE: Show registration/login form
+        
+        Agent->>FE: Complete registration/login
+        FE->>PC: POST /api/invitations/accept
+        PC->>SS: acceptInvitation(token, userId)
+        SS->>DB: BEGIN TRANSACTION
+        SS->>DB: INSERT firm_membership
+        SS->>DB: UPDATE agent_invitations SET status='accepted'
+        SS->>DB: UPDATE firms SET seats_used = seats_used + 1
+        SS->>DB: COMMIT TRANSACTION
+        DB-->>SS: Transaction completed
+        SS-->>PC: Membership created
+        PC-->>FE: Welcome to firm
+        FE->>Agent: Show agent dashboard
+    else No seats available
+        SS-->>PC: Seat limit exceeded error
+        PC-->>FE: Error: upgrade required
+        FE->>U: Show upgrade prompt
+    end
+
+    Note over U, ES: Subscription Upgrade Flow
+    U->>FE: Click "Upgrade Plan" (Growth Plan)
+    FE->>PC: POST /api/subscriptions/upgrade
+    PC->>SS: getCurrentSubscription(userId)
+    SS->>DB: SELECT firm subscription data
+    DB-->>SS: Current subscription
+    PC->>StS: createUpgradeCheckoutSession(currentSubscriptionId, newPriceId)
+    StS->>Stripe: Create checkout session (subscription mode)
+    Stripe-->>StS: Upgrade session URL
+    StS-->>PC: CheckoutSession
+    PC-->>FE: Checkout session
+    FE->>U: Redirect to Stripe
+
+    U->>Stripe: Complete upgrade payment
+    Stripe->>WH: POST /webhooks/stripe (subscription.updated)
+    WH->>SS: handleSubscriptionUpdated(subscription)
+    SS->>DB: UPDATE firm SET tier='growth', seats_purchased=50
+    SS->>DB: INSERT subscription_event (upgrade)
+    DB-->>SS: Subscription updated
+    WH-->>Stripe: 200 OK
+
+    Stripe->>U: Redirect to success page
+    U->>FE: Return to billing dashboard
+    FE->>PC: GET /api/billing/dashboard
+    PC->>SS: getBillingDashboard(userId)
+    SS->>DB: SELECT subscription, usage, billing history
+    SS->>StS: getLatestInvoices(customerId)
+    StS->>Stripe: Retrieve customer invoices
+    Stripe-->>StS: Invoice data
+    StS-->>SS: Invoice list
+    DB-->>SS: Usage metrics
+    SS-->>PC: Complete billing data
+    PC-->>FE: Billing dashboard data
+    FE->>U: Show updated plan features
+
+    Note over U, ES: Permission Check Flow
+    U->>FE: Access CRM Analytics feature
+    FE->>PC: GET /api/features/crm-analytics
+    PC->>PermissionService: checkPermission(userId, 'crm-analytics')
+    PermissionService->>Cache: GET cached permissions
+    
+    alt Cache miss
+        PermissionService->>DB: SELECT firm_membership, firm subscription
+        PermissionService->>DB: SELECT feature_permissions
+        DB-->>PermissionService: Permission data
+        PermissionService->>Cache: SET permissions (TTL: 5min)
+    else Cache hit
+        Cache-->>PermissionService: Cached permissions
+    end
+    
+    PermissionService->>PermissionService: evaluatePermissionRules()
+    
+    alt Permission granted
+        PermissionService-->>PC: {allowed: true}
+        PC->>DB: SELECT analytics data
+        DB-->>PC: Feature data
+        PC-->>FE: Analytics data
+        FE->>U: Show CRM analytics
+    else Permission denied
+        PermissionService-->>PC: {allowed: false, upgrade_required: true}
+        PC-->>FE: Permission denied + upgrade CTA
+        FE->>U: Show upgrade prompt
+    end
+
+    Note over U, ES: Billing Management Flow
+    U->>FE: Access billing dashboard
+    FE->>PC: GET /api/billing/dashboard
+    PC->>SS: getBillingOverview(userId)
+    SS->>DB: SELECT firm, subscription, usage data
+    SS->>StS: getCustomerBillingInfo(customerId)
+    StS->>Stripe: Retrieve customer data
+    Stripe-->>StS: Customer billing info
+    StS-->>SS: Billing details
+    DB-->>SS: Usage statistics
+    SS-->>PC: Complete billing overview
+    PC-->>FE: Billing dashboard data
+    FE->>U: Show subscription details, usage, invoices
+
+    U->>FE: Click "Manage Billing"
+    FE->>PC: GET /api/billing/portal
+    PC->>StS: createPortalSession(customerId, returnUrl)
+    StS->>Stripe: Create billing portal session
+    Stripe-->>StS: Portal session URL
+    StS-->>PC: Portal URL
+    PC-->>FE: Portal URL
+    FE->>U: Redirect to Stripe Customer Portal
+
+    U->>Stripe: Manage billing (update payment method, etc.)
+    Stripe->>WH: POST /webhooks/stripe (customer.updated)
+    WH->>SS: handleCustomerUpdated(customer)
+    SS->>DB: UPDATE billing information
+    DB-->>SS: Customer data updated
+    WH-->>Stripe: 200 OK
+
+    Note over U, ES: Subscription Cancellation Flow
+    U->>FE: Click "Cancel Subscription"
+    FE->>U: Show cancellation confirmation
+    U->>FE: Confirm cancellation
+    FE->>PC: POST /api/subscriptions/cancel
+    PC->>SS: cancelSubscription(userId, reason)
+    SS->>StS: cancelStripeSubscription(subscriptionId)
+    StS->>Stripe: Cancel subscription (at period end)
+    Stripe-->>StS: Cancellation scheduled
+    StS-->>SS: Cancellation confirmed
+    SS->>DB: UPDATE firm SET subscription_status='canceled'
+    SS->>DB: INSERT subscription_event (cancellation)
+    DB-->>SS: Cancellation recorded
+    SS-->>PC: Cancellation success
+    PC-->>FE: Subscription will end at period end
+    FE->>U: Show cancellation confirmation
+
+    Stripe->>WH: POST /webhooks/stripe (subscription.deleted)
+    WH->>SS: handleSubscriptionDeleted(subscription)
+    SS->>DB: UPDATE firm SET subscription_status='inactive'
+    SS->>DB: UPDATE firm SET tier=NULL, seats_purchased=0
+    DB-->>SS: Firm downgraded
+    WH-->>Stripe: 200 OK

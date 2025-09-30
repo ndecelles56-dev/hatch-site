@@ -1,0 +1,53 @@
+Field,Value
+MLSNumber,A1234567
+Status,Active
+ListPrice,549900
+OriginalListPrice,569900
+ListingDate,2025-09-28
+ExpirationDate,2026-03-28
+StreetAddress,4528 Blue Heron Way
+City,Fort Myers
+State,FL
+ZIP,33908
+County,Lee
+Subdivision,Gulf Breeze Estates
+ParcelID,11-45-24-0000-12345.0000
+LegalDescription,GULF BREEZE ESTATES BLK B LOT 12
+PropertyCategory,Residential
+PropertySubtype,Single Family Residence
+ArchitecturalStyle,Contemporary Ranch
+Stories,1
+YearBuilt,2018
+LivingAreaSqFt,2145
+LotSizeAcres,0.28
+LotSizeSqFt,12197
+BedroomsTotal,4
+BathroomsTotal,3
+BathroomsFull,2
+BathroomsHalf,1
+GarageSpaces,2
+GarageType,Attached
+Pool,"Heated, Screen Enclosed"
+Flooring,"Tile, Luxury Vinyl Plank"
+Appliances,"Refrigerator, Dishwasher, Microwave, Range, Washer/Dryer"
+KitchenFeatures,"Granite Counters, Island, Pantry"
+PrimarySuite,"Walk-In Closet, Ensuite Bath w/ Dual Sinks & Soaker Tub"
+Laundry,Inside Utility Room
+Construction,"Concrete Block, Stucco"
+Roof,Tile (2018)
+Foundation,Slab
+ExteriorFeatures,"Paver Driveway, Irrigation System, Fenced Backyard"
+View,Preserve View
+WaterSource,Public
+Sewer,Public Sewer
+Cooling,Central Electric
+Heating,"Electric, Central"
+TaxesAnnual,6480
+TaxYear,2024
+ListingAgentName,Jane Doe
+ListingAgentLicense,SL123456
+ListingOfficeName,Hatch Realty
+ListingOfficeLicense,CQ987654
+PublicRemarks,"Beautiful 4BR/3BA home in Gulf Breeze Estates with heated pool, open concept living, and preserve views."
+BrokerRemarks,"Easy to show, call Jane Doe for details."
+PhotoURLs,https://example.com/photo1.jpg;https://example.com/photo2.jpg
