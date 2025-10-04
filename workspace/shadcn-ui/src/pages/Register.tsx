@@ -1,41 +1,60 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useNavigate } from 'react-router-dom'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Home as HomeIcon, UserPlus, Mail, Lock, User, Building2 } from 'lucide-react'
+import { supabase } from '@/lib/api/client'
+import { getRedirectUrl } from '@/utils/url'
+import { useAuth } from '@/contexts/AuthContext'
+
+type FormDataState = {
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+  confirmPassword: string
+  company: string
+}
+
+type FormErrors = Partial<Record<keyof FormDataState | 'submit', string>>
+
+const initialFormState: FormDataState = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  company: '',
+}
 
 export default function Register() {
   const navigate = useNavigate()
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    company: ''
-  })
-  const [errors, setErrors] = useState({})
+  const { refresh } = useAuth()
+  const [formData, setFormData] = useState<FormDataState>(initialFormState)
+  const [errors, setErrors] = useState<FormErrors>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fieldName = event.target.name as keyof FormDataState
+    const { value } = event.target
+
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [fieldName]: value,
     }))
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }))
-    }
+    setErrors((prev) => ({
+      ...prev,
+      [fieldName]: undefined,
+      submit: undefined,
+    }))
   }
 
   const validateForm = () => {
-    const newErrors = {}
+    const newErrors: FormErrors = {}
 
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'First name is required'
@@ -69,9 +88,12 @@ export default function Register() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    setSuccessMessage(null)
+    setErrors((prev) => ({ ...prev, submit: undefined }))
+
     if (!validateForm()) {
       return
     }
@@ -79,28 +101,43 @@ export default function Register() {
     setIsLoading(true)
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Store user data in localStorage for demo purposes
-      const userData = {
-        id: Date.now(),
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        company: formData.company,
-        registeredAt: new Date().toISOString()
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email.trim(),
+        password: formData.password,
+        options: {
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            company: formData.company,
+            role: 'customer',
+          },
+          emailRedirectTo: getRedirectUrl('/auth/callback'),
+        },
+      })
+
+      if (error) {
+        setErrors((prev) => ({ ...prev, submit: error.message }))
+        return
       }
-      
-      localStorage.setItem('hatch_user', JSON.stringify(userData))
-      localStorage.setItem('hatch_auth_token', 'demo_token_' + Date.now())
-      
-      // Redirect to broker dashboard after successful registration
-      navigate('/broker/dashboard')
-      
+
+      if (!data.user) {
+        setErrors((prev) => ({ ...prev, submit: 'Unable to complete registration. Please try again.' }))
+        return
+      }
+
+      if (data.session) {
+        await refresh().catch((refreshError) => {
+          console.error('Failed to refresh session after signup', refreshError)
+        })
+        navigate('/broker/dashboard')
+        return
+      }
+
+      setSuccessMessage('Account created! Please check your email for the verification link to complete your registration.')
+      setFormData({ ...initialFormState })
     } catch (error) {
-      console.error('Registration error:', error)
-      setErrors({ submit: 'Registration failed. Please try again.' })
+      const message = error instanceof Error ? error.message : 'Registration failed. Please try again.'
+      setErrors((prev) => ({ ...prev, submit: message }))
     } finally {
       setIsLoading(false)
     }
@@ -264,9 +301,15 @@ export default function Register() {
 
               {/* Submit Error */}
               {errors.submit && (
-                <div className="text-sm text-red-600 text-center">
-                  {errors.submit}
-                </div>
+                <Alert variant="destructive" className="text-sm text-center">
+                  <AlertDescription>{errors.submit}</AlertDescription>
+                </Alert>
+              )}
+
+              {successMessage && (
+                <Alert className="text-sm text-center">
+                  <AlertDescription>{successMessage}</AlertDescription>
+                </Alert>
               )}
 
               {/* Submit Button */}

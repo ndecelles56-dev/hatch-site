@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { 
-  UserPlus, 
-  Mail, 
-  Trash2, 
+import {
+  UserPlus,
+  Mail,
+  Trash2,
   RefreshCw,
   AlertCircle,
   Check,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import { toast } from '@/components/ui/use-toast'
 
 interface Invitation {
   id: string
@@ -111,7 +112,11 @@ export function AgentInvitation() {
     try {
       // Check if we have available seats
       if (subscription && subscription.seats_used >= subscription.seats_purchased) {
-        alert('You have reached your seat limit. Please upgrade your plan to invite more agents.')
+        toast({
+          title: 'Seat limit reached',
+          description: 'Upgrade your plan to invite more agents.',
+          variant: 'destructive',
+        })
         return
       }
 
@@ -124,7 +129,11 @@ export function AgentInvitation() {
         .single()
 
       if (!membership) {
-        alert('You must be a primary broker to send invitations.')
+        toast({
+          title: 'Action blocked',
+          description: 'Only primary brokers can send invitations.',
+          variant: 'destructive',
+        })
         return
       }
 
@@ -138,7 +147,11 @@ export function AgentInvitation() {
         .single()
 
       if (existingInvite) {
-        alert('This email already has a pending invitation.')
+        toast({
+          title: 'Invitation pending',
+          description: 'This email already has a pending invite.',
+          variant: 'destructive',
+        })
         return
       }
 
@@ -168,10 +181,17 @@ export function AgentInvitation() {
       setEmail('')
       fetchInvitations()
       
-      alert(`Invitation sent to ${email}! They will receive an email with instructions to join your team.`)
+      toast({
+        title: 'Invitation sent',
+        description: `${email} will receive instructions to join your team.`,
+      })
     } catch (error) {
       console.error('Error sending invitation:', error)
-      alert('Failed to send invitation. Please try again.')
+      toast({
+        title: 'Failed to send invitation',
+        description: 'Please try again in a moment.',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(false)
     }
@@ -187,10 +207,17 @@ export function AgentInvitation() {
       if (error) throw error
       
       fetchInvitations()
-      alert('Invitation revoked successfully.')
+      toast({
+        title: 'Invitation revoked',
+        description: 'The pending invite is no longer active.',
+      })
     } catch (error) {
       console.error('Error revoking invitation:', error)
-      alert('Failed to revoke invitation.')
+      toast({
+        title: 'Failed to revoke invitation',
+        description: 'Please try again in a moment.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -214,10 +241,17 @@ export function AgentInvitation() {
       console.log(`Invitation resent to ${email}`)
       
       fetchInvitations()
-      alert(`Invitation resent to ${email}!`)
+      toast({
+        title: 'Invitation resent',
+        description: `${email} has been emailed again.`,
+      })
     } catch (error) {
       console.error('Error resending invitation:', error)
-      alert('Failed to resend invitation.')
+      toast({
+        title: 'Failed to resend invitation',
+        description: 'Please try again later.',
+        variant: 'destructive',
+      })
     }
   }
 

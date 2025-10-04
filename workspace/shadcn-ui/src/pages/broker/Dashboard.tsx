@@ -25,6 +25,7 @@ import {
   Activity,
   Upload
 } from 'lucide-react'
+import { toast } from '@/components/ui/use-toast'
 
 export default function BrokerDashboard() {
   const { properties, leads, addProperty, addDraftProperties } = useBroker()
@@ -54,14 +55,43 @@ export default function BrokerDashboard() {
     { id: 4, type: 'agent', message: 'Sarah Johnson joined the team', time: '2 days ago', icon: Users },
   ]
 
-  const handleBulkUploadComplete = (draftListings: any[]) => {
+  const handleBulkUploadComplete = async (draftListings: any[]) => {
     // Use the context's addDraftProperties method
-    const newDrafts = addDraftProperties(draftListings)
-    
+    const { created, duplicates } = await addDraftProperties(draftListings)
+
     setShowBulkUpload(false)
-    
-    // Show success message
-    alert(`Successfully imported ${newDrafts.length} properties as drafts! You can edit them in the Draft Listings page.`)
+
+    if (created.length > 0) {
+      toast({
+        title: created.length === 1 ? 'Draft created' : 'Drafts created',
+        description: `Successfully imported ${created.length} propert${created.length === 1 ? 'y' : 'ies'} as drafts. Visit Draft Listings to continue editing.`,
+        variant: 'info',
+      })
+    }
+
+    if (duplicates.length > 0) {
+      toast({
+        title: duplicates.length === 1 ? 'Duplicate skipped' : 'Duplicates skipped',
+        description: (
+          <div className="space-y-1 text-left">
+            {duplicates.map((dup, index) => {
+              const identifier = dup.mlsNumber && dup.mlsNumber.trim().length > 0
+                ? `MLS ${dup.mlsNumber}`
+                : dup.address || 'Listing'
+              const reasonLabel = dup.reason === 'batch_duplicate'
+                ? 'duplicate in upload file'
+                : 'already exists'
+              return (
+                <div key={`${identifier}-${reasonLabel}-${index}`}>
+                  {identifier} ({reasonLabel})
+                </div>
+              )
+            })}
+          </div>
+        ),
+        variant: 'destructive',
+      })
+    }
   }
 
   return (

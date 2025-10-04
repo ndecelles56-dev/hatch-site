@@ -1,9 +1,10 @@
-import React from 'react'
-import { Outlet } from 'react-router-dom'
+import React, { useMemo } from 'react'
+import { Outlet, useNavigate } from 'react-router-dom'
 import BrokerSidebar from './BrokerSidebar'
 import { Button } from '@/components/ui/button'
-import { useNavigate } from 'react-router-dom'
 import { Home, ExternalLink } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { resolveUserIdentity } from '@/lib/utils'
 
 interface BrokerLayoutProps {
   showBackButton?: boolean
@@ -11,6 +12,12 @@ interface BrokerLayoutProps {
 
 export default function BrokerLayout({ showBackButton = false }: BrokerLayoutProps) {
   const navigate = useNavigate()
+  const { session, user } = useAuth()
+
+  const { displayName, initials } = useMemo(
+    () => resolveUserIdentity(session?.profile, user?.email ?? null, 'Broker'),
+    [session?.profile, user?.email]
+  )
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -37,9 +44,9 @@ export default function BrokerLayout({ showBackButton = false }: BrokerLayoutPro
               
               <div className="flex items-center space-x-2 text-sm text-gray-500">
                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-blue-600 font-medium">JD</span>
+                  <span className="text-blue-600 font-medium">{initials}</span>
                 </div>
-                <span>John Doe</span>
+                <span className="text-gray-700 font-medium">{displayName}</span>
               </div>
             </div>
           </div>

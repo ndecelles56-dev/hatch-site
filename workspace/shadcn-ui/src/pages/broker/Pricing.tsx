@@ -1,259 +1,252 @@
-import React from 'react'
+import React, { useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Check, X, Star, Zap, Crown, Shield } from 'lucide-react'
+import { Check, Loader2, Megaphone, ShieldCheck, User, Users2 } from 'lucide-react'
+import { toast } from '@/components/ui/use-toast'
+import { createCheckoutSession } from '@/lib/api/billing'
+import { useAuth } from '@/contexts/AuthContext'
 
-const plans = [
+interface Plan {
+  id: string
+  name: string
+  description: string
+  product: 'agent_solo' | 'brokerage'
+  seats: number
+  badge?: string
+  badgeTone?: 'primary' | 'secondary'
+  monthlyPrice: number
+  yearlyPrice: number
+  features: string[]
+}
+
+const plans: Plan[] = [
   {
-    name: 'Starter',
-    price: '$29',
-    period: '/month',
-    description: 'Perfect for new agents getting started',
-    icon: <Star className="w-6 h-6" />,
+    id: 'agent-solo',
+    name: 'Agent Solo',
+    description: 'Ideal for individual agents who need the full marketing and listings toolkit.',
+    product: 'agent_solo',
+    seats: 1,
+    monthlyPrice: 79,
+    yearlyPrice: 828, // 12 months with a small discount
     features: [
-      'Up to 50 client contacts',
-      'Basic CRM functionality',
-      'Email templates',
-      'Mobile app access',
-      'Standard support'
+      'Single seat with full feature access',
+      'Automated email + SMS follow ups',
+      'AI-powered listing copy + marketing assets',
+      'MLS & portal sync for personal inventory',
+      'Stripe-powered billing & receipts',
     ],
-    notIncluded: [
-      'Advanced analytics',
-      'Team collaboration',
-      'Custom branding',
-      'API access'
-    ],
-    popular: false,
-    color: 'from-blue-500 to-blue-600'
   },
   {
-    name: 'Professional',
-    price: '$79',
-    period: '/month',
-    description: 'For established agents and small teams',
-    icon: <Zap className="w-6 h-6" />,
+    id: 'brokerage-25',
+    name: 'Brokerage 25',
+    description: 'Launch your brokerage with bundled seats and shared brand collateral.',
+    product: 'brokerage',
+    seats: 25,
+    monthlyPrice: 499,
+    yearlyPrice: 5290,
+    badge: 'Great for new teams',
+    badgeTone: 'secondary',
     features: [
-      'Up to 500 client contacts',
-      'Advanced CRM with automation',
-      'Custom email templates',
-      'Advanced analytics & reporting',
-      'Team collaboration tools',
-      'Priority support',
-      'Mobile app with offline access',
-      'Integration with MLS systems'
+      '25 seats with role-based permissions',
+      'Centralized listing + lead routing',
+      'Seat usage analytics & pipeline dashboards',
+      'Shared marketing templates & asset library',
+      'Priority support for onboarding',
     ],
-    notIncluded: [
-      'Custom branding',
-      'API access'
-    ],
-    popular: true,
-    color: 'from-purple-500 to-purple-600'
   },
   {
-    name: 'Enterprise',
-    price: '$199',
-    period: '/month',
-    description: 'For large teams and brokerages',
-    icon: <Crown className="w-6 h-6" />,
+    id: 'brokerage-50',
+    name: 'Brokerage 50',
+    description: 'Scale-ready bundle with deeper analytics and seat governance.',
+    product: 'brokerage',
+    seats: 50,
+    monthlyPrice: 899,
+    yearlyPrice: 9490,
+    badge: 'Most Popular',
+    badgeTone: 'primary',
     features: [
-      'Unlimited client contacts',
-      'Full CRM suite with AI insights',
-      'Custom branding & white-label',
-      'Advanced team management',
-      'Custom integrations & API access',
-      'Dedicated account manager',
-      'Custom training sessions',
-      'Advanced security features',
-      'Custom reporting dashboards'
+      '50 seats included + billing overrides',
+      'Advanced analytics & goal tracking',
+      'Team document vault & compliance logs',
+      'Seat management automation + webhooks',
+      'Dedicated CSM & quarterly strategy reviews',
     ],
-    notIncluded: [],
-    popular: false,
-    color: 'from-amber-500 to-amber-600'
-  }
+  },
+  {
+    id: 'brokerage-100',
+    name: 'Brokerage 100',
+    description: 'For high-volume firms that need enterprise governance and SLAs.',
+    product: 'brokerage',
+    seats: 100,
+    monthlyPrice: 1499,
+    yearlyPrice: 15890,
+    features: [
+      '100 bundled seats with policy controls',
+      'Custom SSO + security reviews',
+      'Multi-market MLS integrations',
+      'White-glove migration + playbook workshops',
+      'Priority SLA support & roadmap input',
+    ],
+  },
 ]
 
-const addOns = [
-  {
-    name: 'Lead Generation Pro',
-    price: '$49/month',
-    description: 'Advanced lead capture and nurturing tools',
-    icon: <Shield className="w-5 h-5" />
-  },
-  {
-    name: 'Marketing Automation',
-    price: '$39/month',
-    description: 'Automated email campaigns and social media posting',
-    icon: <Zap className="w-5 h-5" />
-  },
-  {
-    name: 'Advanced Analytics',
-    price: '$29/month',
-    description: 'Detailed performance insights and custom reports',
-    icon: <Star className="w-5 h-5" />
-  }
-]
+const contactSales = {
+  heading: 'Need more than 100 seats?',
+  body: 'Talk with our sales team for bespoke seat bundles, premium support SLAs, and migration assistance.',
+  actionText: 'Contact Sales',
+  actionHref: 'mailto:sales@hatch.dev?subject=Custom%20Hatch%20Plan',
+}
 
 export default function PricingPage() {
+  const { activeOrgId, activeMembership } = useAuth()
+  const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly')
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
+
+  const intervalCopy = useMemo(() => ({
+    monthly: {
+      label: '/month',
+      helper: 'Billed monthly',
+    },
+    yearly: {
+      label: '/year',
+      helper: 'Billed annually (2 months free)',
+    },
+  }), [])
+
+  const handleCheckout = async (plan: Plan) => {
+    try {
+      setLoadingPlan(plan.id)
+      const { url } = await createCheckoutSession({
+        product: plan.product,
+        interval,
+        seats: plan.seats,
+        orgId: activeOrgId ?? undefined,
+        orgName: activeMembership?.org?.name,
+      })
+      window.location.href = url
+    } catch (error) {
+      console.error('Checkout failed', error)
+      const description = error instanceof Error ? error.message : 'Please try again in a few minutes.'
+      toast({
+        title: 'Unable to start checkout',
+        description,
+        variant: 'destructive',
+      })
+    } finally {
+      setLoadingPlan(null)
+    }
+  }
+
+  const renderPrice = (plan: Plan) => {
+    const value = interval === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice
+    return `$${value.toLocaleString()}`
+  }
+
   return (
-    <div className="p-6 space-y-8">
-      {/* Header */}
+    <div className="p-6 space-y-10">
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-gray-900">Choose Your Plan</h1>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Select the perfect plan for your real estate business. Upgrade or downgrade at any time.
+        <Badge variant="outline" className="gap-2 text-sm">
+          <ShieldCheck className="h-4 w-4" /> Seat-based subscriptions with Stripe checkout
+        </Badge>
+        <h1 className="text-4xl font-bold text-gray-900">Choose a plan that fits your brokerage</h1>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          Each bundle includes the full Hatch marketing + listings suite. Pick the seat count that matches your team,
+          or talk with sales for a tailored rollout.
         </p>
-      </div>
-
-      {/* Pricing Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
-        {plans.map((plan, index) => (
-          <Card 
-            key={index} 
-            className={`relative overflow-hidden transition-all duration-300 hover:shadow-xl ${
-              plan.popular ? 'ring-2 ring-purple-500 scale-105' : 'hover:scale-105'
-            }`}
+        <div className="inline-flex items-center gap-2 bg-slate-100 rounded-full p-1">
+          <Button
+            size="sm"
+            variant={interval === 'monthly' ? 'default' : 'ghost'}
+            onClick={() => setInterval('monthly')}
+            className="rounded-full"
           >
-            {plan.popular && (
-              <div className="absolute top-0 right-0 bg-purple-500 text-white px-3 py-1 text-sm font-semibold rounded-bl-lg">
-                Most Popular
-              </div>
-            )}
-            
-            <CardHeader className="text-center pb-2">
-              <div className={`w-16 h-16 mx-auto rounded-full bg-gradient-to-r ${plan.color} flex items-center justify-center text-white mb-4`}>
-                {plan.icon}
-              </div>
-              <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
-              <div className="flex items-baseline justify-center space-x-1">
-                <span className="text-4xl font-bold text-gray-900">{plan.price}</span>
-                <span className="text-gray-500">{plan.period}</span>
-              </div>
-              <CardDescription className="text-gray-600 mt-2">
-                {plan.description}
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-6">
-              <Button 
-                className={`w-full ${
-                  plan.popular 
-                    ? 'bg-purple-600 hover:bg-purple-700' 
-                    : 'bg-gray-900 hover:bg-gray-800'
-                } text-white`}
-              >
-                {plan.popular ? 'Start Free Trial' : 'Get Started'}
-              </Button>
-              
-              <div className="space-y-3">
-                <h4 className="font-semibold text-gray-900">What's included:</h4>
-                <ul className="space-y-2">
-                  {plan.features.map((feature, featureIndex) => (
-                    <li key={featureIndex} className="flex items-center space-x-3">
-                      <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                      <span className="text-gray-700">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                
-                {plan.notIncluded.length > 0 && (
-                  <ul className="space-y-2 pt-2">
-                    {plan.notIncluded.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-center space-x-3">
-                        <X className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                        <span className="text-gray-500">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+            Monthly
+          </Button>
+          <Button
+            size="sm"
+            variant={interval === 'yearly' ? 'default' : 'ghost'}
+            onClick={() => setInterval('yearly')}
+            className="rounded-full"
+          >
+            Yearly
+          </Button>
+        </div>
+        <p className="text-sm text-gray-500">{intervalCopy[interval].helper}</p>
       </div>
 
-      {/* Add-ons Section */}
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Power Up Your Plan</h2>
-          <p className="text-gray-600">Enhance your experience with these optional add-ons</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {addOns.map((addon, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-                    {addon.icon}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+        {plans.map((plan) => {
+          const badgeTone = plan.badgeTone === 'secondary' ? 'secondary' : 'default'
+          const isPopular = plan.badgeTone === 'primary'
+          return (
+            <Card
+              key={plan.id}
+              className={`relative h-full flex flex-col ${
+                isPopular ? 'border-purple-500 ring-2 ring-purple-100 shadow-lg' : 'hover:shadow-lg transition-shadow'
+              }`}
+            >
+              <CardHeader className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    {plan.product === 'agent_solo' ? <User className="h-4 w-4" /> : <Users2 className="h-4 w-4" />}
+                    <span>{plan.seats} seat{plan.seats === 1 ? '' : 's'} included</span>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{addon.name}</h3>
-                    <p className="text-sm font-medium text-blue-600">{addon.price}</p>
-                  </div>
+                  {plan.badge && (
+                    <Badge variant={badgeTone}>{plan.badge}</Badge>
+                  )}
                 </div>
-                <p className="text-gray-600 text-sm mb-4">{addon.description}</p>
-                <Button variant="outline" size="sm" className="w-full">
-                  Add to Plan
+                <CardTitle className="text-2xl font-bold text-gray-900">{plan.name}</CardTitle>
+                <CardDescription className="text-gray-600 leading-relaxed">
+                  {plan.description}
+                </CardDescription>
+                <div>
+                  <span className="text-4xl font-bold text-gray-900">{renderPrice(plan)}</span>
+                  <span className="text-gray-500 ml-2">{intervalCopy[interval].label}</span>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col gap-6">
+                <div className="space-y-3">
+                  {plan.features.map((feature) => (
+                    <div key={feature} className="flex items-start gap-3 text-sm text-gray-700">
+                      <Check className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  className="mt-auto"
+                  onClick={() => handleCheckout(plan)}
+                  disabled={loadingPlan === plan.id}
+                >
+                  {loadingPlan === plan.id ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Redirecting…
+                    </span>
+                  ) : (
+                    'Select Plan'
+                  )}
                 </Button>
               </CardContent>
             </Card>
-          ))}
-        </div>
+          )
+        })}
       </div>
 
-      {/* FAQ Section */}
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
-        </div>
-        
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">Can I change my plan at any time?</h3>
-              <p className="text-gray-600">Yes, you can upgrade or downgrade your plan at any time. Changes will be reflected in your next billing cycle.</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">Is there a free trial available?</h3>
-              <p className="text-gray-600">We offer a 14-day free trial for all plans. No credit card required to get started.</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">What payment methods do you accept?</h3>
-              <p className="text-gray-600">We accept all major credit cards, PayPal, and bank transfers for Enterprise customers.</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">Do you offer custom enterprise solutions?</h3>
-              <p className="text-gray-600">Yes, we work with large brokerages to create custom solutions. Contact our sales team to discuss your specific needs.</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* CTA Section */}
-      <div className="text-center space-y-4 py-12">
-        <h2 className="text-3xl font-bold text-gray-900">Ready to Get Started?</h2>
-        <p className="text-gray-600 max-w-2xl mx-auto">
-          Join thousands of real estate professionals who trust our platform to grow their business.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white">
-            Start Free Trial
+      <Card className="max-w-5xl mx-auto border-dashed">
+        <CardContent className="p-8 flex flex-col md:flex-row items-start md:items-center gap-6">
+          <div className="flex items-center justify-center w-14 h-14 rounded-full bg-blue-100 text-blue-700">
+            <Megaphone className="h-6 w-6" />
+          </div>
+          <div className="space-y-2 flex-1">
+            <h2 className="text-2xl font-semibold text-gray-900">{contactSales.heading}</h2>
+            <p className="text-gray-600">{contactSales.body}</p>
+          </div>
+          <Button asChild variant="outline" className="whitespace-nowrap">
+            <a href={contactSales.actionHref}>{contactSales.actionText}</a>
           </Button>
-          <Button size="lg" variant="outline">
-            Schedule Demo
-          </Button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

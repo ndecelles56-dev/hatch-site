@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toast } from '@/components/ui/use-toast'
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -150,7 +151,11 @@ export default function CalendarPage() {
 
   const handleAddAppointment = () => {
     if (!newAppointment.title || !newAppointment.client || !newAppointment.time) {
-      alert('Please fill in all required fields')
+      toast({
+        title: 'Missing details',
+        description: 'Please complete all required fields before saving.',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -190,7 +195,11 @@ export default function CalendarPage() {
 
   const handleUpdateAppointment = () => {
     if (!editingAppointment || !newAppointment.title || !newAppointment.client || !newAppointment.time) {
-      alert('Please fill in all required fields')
+      toast({
+        title: 'Missing details',
+        description: 'Please complete all required fields before updating.',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -240,7 +249,11 @@ export default function CalendarPage() {
 
   const handleRescheduleConfirm = () => {
     if (!editingAppointment || !rescheduleData.date || !rescheduleData.time) {
-      alert('Please select both date and time')
+      toast({
+        title: 'Incomplete reschedule',
+        description: 'Select both a date and time to reschedule this appointment.',
+        variant: 'destructive',
+      })
       return
     }
 

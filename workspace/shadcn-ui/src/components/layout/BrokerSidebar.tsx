@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { 
@@ -12,10 +12,12 @@ import {
   Globe,
   LogOut
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function BrokerSidebar() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { signOut } = useAuth()
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/broker/dashboard' },
@@ -28,6 +30,14 @@ export default function BrokerSidebar() {
   ]
 
   const isActive = (path: string) => location.pathname === path
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await signOut()
+    } finally {
+      navigate('/login')
+    }
+  }, [navigate, signOut])
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
@@ -81,7 +91,7 @@ export default function BrokerSidebar() {
         <Button
           variant="ghost"
           className="w-full justify-start text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          onClick={() => navigate('/login')}
+          onClick={handleSignOut}
         >
           <LogOut className="mr-3 h-4 w-4" />
           Sign Out

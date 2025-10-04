@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { toast } from '@/components/ui/use-toast'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -8,13 +9,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useBroker } from '@/contexts/BrokerContext'
 import { MLSProperty } from '@/types/MLSProperty'
 import BulkListingUpload from '@/components/upload/BulkListingUpload'
+import type { DraftListing as UploadDraftListing } from '@/components/upload/BulkListingUpload'
 import PhotoUpload from '@/components/PhotoUpload'
+import { MIN_PROPERTY_PHOTOS, MAX_PROPERTY_PHOTOS } from '@/constants/photoRequirements'
 import PropertyPreview from '@/components/PropertyPreview'
+import { PropertyFiltersComponent, PROPERTY_FILTER_LIMITS, createDefaultPropertyFilters } from '@/components/PropertyFilters'
+import type { PropertyFilters } from '@/components/PropertyFilters'
 import {
   FileText,
   Edit,
@@ -33,8 +39,137 @@ import {
   User,
   FileImage,
   Settings,
-  Check
+  Check,
+  Loader2,
 } from 'lucide-react'
+
+const cloneFilters = (filters: PropertyFilters): PropertyFilters => ({
+  ...filters,
+  priceRange: [...filters.priceRange] as [number, number],
+  propertyTypes: [...filters.propertyTypes],
+  sqftRange: [...filters.sqftRange] as [number, number],
+  yearBuiltRange: [...filters.yearBuiltRange] as [number, number],
+  status: [...filters.status],
+  agents: [...filters.agents],
+  cities: [...filters.cities],
+  daysOnMarket: [...filters.daysOnMarket] as [number, number],
+  listingDateRange: { ...filters.listingDateRange },
+  lotSizeRange: [...filters.lotSizeRange] as [number, number],
+})
+
+const countActiveFilters = (filters: PropertyFilters) => {
+  let count = 0
+  if (filters.search) count++
+  if (filters.priceRange[0] > 0 || filters.priceRange[1] < PROPERTY_FILTER_LIMITS.priceMax) count++
+  if (filters.propertyTypes.length > 0) count++
+  if (filters.bedrooms !== 'Any') count++
+  if (filters.bathrooms !== 'Any') count++
+  if (filters.sqftRange[0] > 0 || filters.sqftRange[1] < PROPERTY_FILTER_LIMITS.sqftMax) count++
+  if (filters.status.length > 0) count++
+  if (filters.agents.length > 0) count++
+  if (filters.cities.length > 0) count++
+  if (filters.mlsNumber) count++
+  if (filters.listingDateRange.from || filters.listingDateRange.to) count++
+  if (filters.daysOnMarket[0] > 0 || filters.daysOnMarket[1] < 365) count++
+  if (filters.lotSizeRange[0] > 0 || filters.lotSizeRange[1] < PROPERTY_FILTER_LIMITS.lotSizeMax) count++
+  return count
+}
+
+const getDaysOnMarket = (property: MLSProperty) => {
+  if (!property.createdAt) return 0
+  const created = new Date(property.createdAt)
+  const now = new Date()
+  const diff = now.getTime() - created.getTime()
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)))
+}
+
+const parseDate = (value?: string) => {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const createEmptyDraftProperty = (): MLSProperty => {
+  const now = new Date().toISOString()
+  return {
+    id: `draft_new_${Date.now()}`,
+    status: 'draft',
+    workflowState: 'PROPERTY_PENDING',
+    listPrice: 0,
+    originalListPrice: undefined,
+    propertyType: 'residential',
+    propertySubType: undefined,
+    architecturalStyle: undefined,
+    yearBuilt: new Date().getFullYear(),
+    livingAreaSqFt: 0,
+    bedrooms: 0,
+    bathrooms: 0,
+    bathroomsHalf: undefined,
+    bathroomsPartial: undefined,
+    bathroomsTotal: undefined,
+    stories: undefined,
+    streetNumber: '',
+    streetName: '',
+    streetSuffix: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    county: '',
+    subdivision: undefined,
+    parcelID: undefined,
+    latitude: undefined,
+    longitude: undefined,
+    lotSize: 0,
+    lotSizeAcres: undefined,
+    garageSpaces: undefined,
+    garageType: undefined,
+    flooring: undefined,
+    poolFeatures: undefined,
+    fireplaceFeatures: undefined,
+    kitchenFeatures: undefined,
+    primarySuite: undefined,
+    laundryFeatures: undefined,
+    interiorFeatures: undefined,
+    appliances: undefined,
+    constructionMaterials: undefined,
+    roofType: undefined,
+    foundationDetails: undefined,
+    exteriorFeatures: undefined,
+    propertyView: undefined,
+    waterSource: undefined,
+    sewerSystem: undefined,
+    heatingType: undefined,
+    coolingType: undefined,
+    taxes: undefined,
+    taxYear: undefined,
+    hoaFee: undefined,
+    buyerAgentCompensation: undefined,
+    specialAssessments: undefined,
+    listingAgentName: '',
+    listingAgentLicense: '',
+    listingAgentPhone: '',
+    listingAgentEmail: undefined,
+    brokerage: '',
+    brokerageLicense: undefined,
+    showingInstructions: undefined,
+    photos: [],
+    coverPhotoUrl: undefined,
+    publicRemarks: undefined,
+    brokerRemarks: undefined,
+    virtualTourUrl: undefined,
+    videoUrl: undefined,
+    listingDate: new Date().toISOString().split('T')[0],
+    viewCount: 0,
+    leadCount: 0,
+    favoriteCount: 0,
+    createdAt: now,
+    lastModified: now,
+    completionPercentage: 0,
+    validationErrors: [],
+    publishedAt: undefined,
+    closedAt: undefined,
+  }
+}
 
 export default function DraftListings() {
   const { getDraftProperties, updateProperty, deleteProperty, publishDraftProperty, addDraftProperties } = useBroker()
@@ -46,8 +181,254 @@ export default function DraftListings() {
   const [selectedListings, setSelectedListings] = useState<string[]>([])
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [publishingId, setPublishingId] = useState<string | null>(null)
+  const [isNewDraft, setIsNewDraft] = useState(false)
+  const [isImportingDrafts, setIsImportingDrafts] = useState(false)
+  const [showFiltersDialog, setShowFiltersDialog] = useState(false)
+  const [filters, setFilters] = useState<PropertyFilters>(() => createDefaultPropertyFilters())
+  const [savedFilterPresets, setSavedFilterPresets] = useState<Array<{ name: string; filters: PropertyFilters }>>([])
 
   const draftListings = getDraftProperties()
+
+  const openNewDraftDialog = useCallback(() => {
+    const blank = createEmptyDraftProperty()
+    setEditingProperty(blank)
+    setIsNewDraft(true)
+    setShowEditDialog(true)
+  }, [])
+
+  const matchesFilters = (property: MLSProperty): boolean => {
+    const searchTerm = filters.search.trim().toLowerCase()
+    if (searchTerm) {
+      const haystack = [
+        property.mlsNumber,
+        `${property.streetNumber} ${property.streetName} ${property.streetSuffix}`,
+        property.city,
+        property.state,
+        property.zipCode,
+        property.publicRemarks,
+        property.brokerRemarks,
+        property.listingAgentName,
+        property.brokerage,
+      ]
+        .filter(Boolean)
+        .map((value) => value!.toString().toLowerCase())
+      if (!haystack.some((value) => value.includes(searchTerm))) {
+        return false
+      }
+    }
+
+    if (property.listPrice < filters.priceRange[0] || property.listPrice > filters.priceRange[1]) {
+      return false
+    }
+
+    if (filters.propertyTypes.length > 0) {
+      const propertyType = (property.propertyType || '').toLowerCase()
+      if (!filters.propertyTypes.some((type) => propertyType === type.toLowerCase())) {
+        return false
+      }
+    }
+
+    if (filters.bedrooms !== 'Any') {
+      const bedroomsValue = property.bedrooms ?? 0
+      if (filters.bedrooms.endsWith('+')) {
+        const min = parseInt(filters.bedrooms)
+        if (bedroomsValue < min) return false
+      } else {
+        const target = parseInt(filters.bedrooms)
+        if (bedroomsValue !== target) return false
+      }
+    }
+
+    if (filters.bathrooms !== 'Any') {
+      const bathroomsValue = property.bathrooms ?? 0
+      if (filters.bathrooms.endsWith('+')) {
+        const min = parseFloat(filters.bathrooms)
+        if (bathroomsValue < min) return false
+      } else {
+        const target = parseFloat(filters.bathrooms)
+        if (Number.isFinite(target) && bathroomsValue !== target) return false
+      }
+    }
+
+    if (property.livingAreaSqFt < filters.sqftRange[0] || property.livingAreaSqFt > filters.sqftRange[1]) {
+      return false
+    }
+
+    if (property.yearBuilt < filters.yearBuiltRange[0] || property.yearBuilt > filters.yearBuiltRange[1]) {
+      return false
+    }
+
+    if (filters.status.length > 0 && !filters.status.includes(property.status)) {
+      return false
+    }
+
+    if (filters.agents.length > 0) {
+      const agentId = (property.listingAgentEmail || property.listingAgentName || '').toLowerCase()
+      if (!filters.agents.includes(agentId)) {
+        return false
+      }
+    }
+
+    if (filters.cities.length > 0) {
+      const city = (property.city || '').toLowerCase()
+      if (!filters.cities.some((c) => city === c.toLowerCase())) {
+        return false
+      }
+    }
+
+    const daysOnMarket = getDaysOnMarket(property)
+    if (daysOnMarket < filters.daysOnMarket[0] || daysOnMarket > filters.daysOnMarket[1]) {
+      return false
+    }
+
+    if (filters.listingDateRange.from || filters.listingDateRange.to) {
+      const listingDate = parseDate(property.listingDate ?? property.createdAt)
+      const fromDate = parseDate(filters.listingDateRange.from)
+      const toDate = parseDate(filters.listingDateRange.to)
+      if ((fromDate && (!listingDate || listingDate < fromDate)) || (toDate && (!listingDate || listingDate > toDate))) {
+        return false
+      }
+    }
+
+    if (filters.mlsNumber) {
+      const normalizedMLS = (property.mlsNumber || '').toLowerCase()
+      if (!normalizedMLS.includes(filters.mlsNumber.trim().toLowerCase())) {
+        return false
+      }
+    }
+
+    if (property.lotSize < filters.lotSizeRange[0] || property.lotSize > filters.lotSizeRange[1]) {
+      return false
+    }
+
+    return true
+  }
+
+  const filteredDraftListings = useMemo(() => {
+    const filtered = draftListings.filter(matchesFilters)
+    const sorted = [...filtered].sort((a, b) => {
+      const direction = filters.sortOrder === 'asc' ? 1 : -1
+
+      const getSortValue = (property: MLSProperty) => {
+        switch (filters.sortBy) {
+          case 'price':
+            return property.listPrice
+          case 'sqft':
+            return property.livingAreaSqFt
+          case 'bedrooms':
+            return property.bedrooms
+          case 'listingDate': {
+            const date = parseDate(property.listingDate ?? property.createdAt)
+            return date ? date.getTime() : 0
+          }
+          case 'daysOnMarket':
+            return getDaysOnMarket(property)
+          case 'viewCount':
+            return property.viewCount ?? 0
+          case 'leadCount':
+            return property.leadCount ?? 0
+          default:
+            return property.lastModified ? new Date(property.lastModified).getTime() : 0
+        }
+      }
+
+      const valueA = getSortValue(a)
+      const valueB = getSortValue(b)
+
+      if (valueA < valueB) return -1 * direction
+      if (valueA > valueB) return 1 * direction
+      return 0
+    })
+    return sorted
+  }, [draftListings, filters])
+
+  const agentsOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>()
+    draftListings.forEach((listing) => {
+      const identifier = (listing.listingAgentEmail || listing.listingAgentName || '').trim()
+      if (!identifier) return
+      const id = identifier.toLowerCase()
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name: listing.listingAgentName || listing.listingAgentEmail || identifier,
+        })
+      }
+    })
+    return Array.from(map.values())
+  }, [draftListings])
+
+  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('newDraft')) {
+      openNewDraftDialog()
+      params.delete('newDraft')
+      const query = params.toString()
+      const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`
+      window.history.replaceState({}, '', nextUrl)
+    }
+  }, [openNewDraftDialog])
+
+  const mergeUploadDraftListings = (listings: UploadDraftListing[]): UploadDraftListing | null => {
+    if (!Array.isArray(listings) || listings.length === 0) {
+      return null
+    }
+
+    const [first, ...rest] = listings
+    const merged: UploadDraftListing = {
+      ...first,
+      id: `draft_batch_${Date.now()}`,
+      fileName: listings.length === 1 ? first.fileName : `${listings.length} files`,
+      uploadDate: new Date().toISOString(),
+      totalRecords: first.totalRecords,
+      validRecords: first.validRecords,
+      errorRecords: first.errorRecords,
+      requiredFieldsComplete: first.requiredFieldsComplete,
+      optionalFieldsComplete: first.optionalFieldsComplete,
+      photosCount: first.photosCount,
+      data: [...(first.data ?? [])],
+      validationErrors: [...(first.validationErrors ?? [])],
+      fieldMapping: [...(first.fieldMapping ?? [])],
+      mlsCompliant: first.mlsCompliant,
+      completionPercentage: first.completionPercentage,
+    }
+
+    rest.forEach((listing) => {
+      merged.data = [...merged.data, ...(listing.data ?? [])]
+      merged.validationErrors = [
+        ...(merged.validationErrors ?? []),
+        ...(listing.validationErrors ?? []),
+      ]
+
+      merged.totalRecords += listing.totalRecords
+      merged.validRecords += listing.validRecords
+      merged.errorRecords += listing.errorRecords
+      merged.requiredFieldsComplete += listing.requiredFieldsComplete
+      merged.optionalFieldsComplete += listing.optionalFieldsComplete
+      merged.photosCount += listing.photosCount
+      merged.mlsCompliant = (merged.mlsCompliant ?? true) && (listing.mlsCompliant ?? true)
+
+      const combinedMappings = [...(merged.fieldMapping ?? []), ...(listing.fieldMapping ?? [])]
+      const byStandard = new Map<string, typeof combinedMappings[number]>()
+      combinedMappings.forEach((mapping) => {
+        const key = mapping?.mlsField?.standardName
+        if (!key) return
+        if (!byStandard.has(key)) {
+          byStandard.set(key, mapping)
+        }
+      })
+      merged.fieldMapping = Array.from(byStandard.values())
+    })
+
+    if (merged.totalRecords > 0) {
+      merged.completionPercentage = Math.round((merged.requiredFieldsComplete / merged.totalRecords) * 100)
+    }
+
+    return merged
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -78,7 +459,7 @@ export default function DraftListings() {
 
   const validateProperty = (property: MLSProperty) => {
     const errors: string[] = []
-    
+
     // Required fields validation
     const requiredFields = [
       { field: 'listPrice', name: 'List Price', value: property.listPrice },
@@ -105,14 +486,30 @@ export default function DraftListings() {
     ]
 
     requiredFields.forEach(({ field, name, value }) => {
-      if (!value || value === '' || value === 0) {
+      const isMissing =
+        value === undefined ||
+        value === null ||
+        (typeof value === 'string' && value.trim().length === 0) ||
+        (typeof value === 'number' && value === 0)
+
+      if (isMissing) {
         errors.push(`${name} is required`)
       }
     })
 
-    // Photo validation - minimum 4 photos required
-    if (!property.photos || property.photos.length < 4) {
-      errors.push(`Minimum 4 photos required (currently have ${property.photos?.length || 0})`)
+    const latitudeValue = property.latitude
+    if (latitudeValue === undefined || latitudeValue === null || Number.isNaN(latitudeValue)) {
+      errors.push('Latitude is required')
+    }
+
+    const longitudeValue = property.longitude
+    if (longitudeValue === undefined || longitudeValue === null || Number.isNaN(longitudeValue)) {
+      errors.push('Longitude is required')
+    }
+
+    // Photo validation - minimum 5 photos required
+    if (!property.photos || property.photos.length < MIN_PROPERTY_PHOTOS) {
+      errors.push(`Minimum ${MIN_PROPERTY_PHOTOS} photos required (currently have ${property.photos?.length || 0})`)
     }
 
     return errors
@@ -120,13 +517,14 @@ export default function DraftListings() {
 
   const calculateCompletionPercentage = (property: MLSProperty) => {
     const errors = validateProperty(property)
-    const totalRequiredFields = 18 + 1 // 18 required fields + photo requirement
+    const totalRequiredFields = 18 + 3 // 18 core fields + photos + latitude/longitude
     const completedFields = totalRequiredFields - errors.length
     return Math.round((completedFields / totalRequiredFields) * 100)
   }
 
   const handleEdit = (property: MLSProperty) => {
     setEditingProperty({ ...property })
+    setIsNewDraft(false)
     setShowEditDialog(true)
   }
 
@@ -135,7 +533,7 @@ export default function DraftListings() {
     setShowPreviewDialog(true)
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingProperty) {
       const errors = validateProperty(editingProperty)
       const completionPercentage = calculateCompletionPercentage(editingProperty)
@@ -150,10 +548,46 @@ export default function DraftListings() {
         })),
         lastModified: new Date().toISOString()
       }
-      
-      updateProperty(editingProperty.id, updatedProperty)
-      setShowEditDialog(false)
-      setEditingProperty(null)
+
+      if (isNewDraft) {
+        const { created, duplicates } = await addDraftProperties([
+          updatedProperty as unknown as Record<string, unknown>
+        ])
+
+        if (duplicates.length > 0) {
+          toast({
+            title: duplicates.length === 1 ? 'Duplicate listing skipped' : 'Duplicate listings skipped',
+            description: (
+              <div className="space-y-1 text-left">
+                {duplicates.map((dup, index) => {
+                  const identifier = dup.mlsNumber && dup.mlsNumber.trim().length > 0 ? `MLS ${dup.mlsNumber}` : dup.address || 'Listing'
+                  const reasonLabel = dup.reason === 'batch_duplicate' ? 'duplicate in upload file' : 'already exists'
+                  return (
+                    <div key={`${identifier}-${reasonLabel}-${index}`}>
+                      {identifier} ({reasonLabel})
+                    </div>
+                  )
+                })}
+              </div>
+            ),
+            variant: 'destructive',
+          })
+        } else if (created.length > 0) {
+          toast({
+            title: 'Draft created',
+            description: 'You can continue editing the new listing from the drafts list below.',
+            variant: 'info',
+          })
+        }
+
+        setShowEditDialog(false)
+        setEditingProperty(null)
+        setIsNewDraft(false)
+      } else {
+        await updateProperty(editingProperty.id, updatedProperty)
+        setShowEditDialog(false)
+        setEditingProperty(null)
+      }
     }
   }
 
@@ -163,38 +597,93 @@ export default function DraftListings() {
 
     const errors = validateProperty(property)
     if (errors.length > 0) {
-      alert(`Cannot publish listing. Please fix the following issues:\n\n${errors.join('\n')}`)
+      toast({
+        title: 'Publish blocked',
+        description: errors.join('\n'),
+        variant: 'destructive',
+      })
       return
     }
 
-    if (confirm('Are you sure you want to publish this listing? It will become active and visible to customers.')) {
-      setPublishingId(id)
-      
-      try {
-        publishDraftProperty(id)
-        
-        // Show success message
-        setTimeout(() => {
-          alert('Property published successfully! You can now view it in the Properties section.')
-          setPublishingId(null)
-        }, 500)
-      } catch (error) {
-        console.error('Error publishing property:', error)
-        alert('Error publishing property. Please try again.')
-        setPublishingId(null)
+    setPublishingId(id)
+    try {
+      await publishDraftProperty(id)
+      toast({
+        title: 'Property published',
+        description: 'The listing is now live in the Properties section.',
+        variant: 'success',
+      })
+    } catch (error) {
+      console.error('Error publishing property:', error)
+
+      const err = error as Error & { payload?: { reasons?: Record<string, string> } }
+      if (err?.message === 'validation_failed' && err.payload?.reasons) {
+        const reasonMessages: Record<string, string> = {
+          photos: 'Minimum of 5 photos is required before publishing.',
+          geo: 'Complete property address with valid latitude and longitude is required.',
+          price: 'List price must be greater than 0.',
+          bedrooms: 'Bedroom count must be greater than 0.',
+          bathrooms: 'Bathroom count must be greater than 0.',
+          livingArea: 'Living area (square footage) must be greater than 0.',
+          is_test: 'Listing is flagged as test data. Remove test keywords before publishing.',
+        }
+
+        const details = Object.entries(err.payload.reasons).map(([key, code]) => {
+          const friendly = reasonMessages[key] ?? `Issue with ${key}`
+          return `${friendly}${code ? ` (code: ${code})` : ''}`
+        })
+
+        toast({
+          title: 'Publish blocked',
+          description: details.join('\n'),
+          variant: 'destructive',
+        })
+      } else {
+        toast({
+          title: 'Publish failed',
+          description: 'Unexpected error publishing property. Please try again.',
+          variant: 'destructive',
+        })
       }
+    } finally {
+      setPublishingId(null)
     }
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this draft listing? This action cannot be undone.')) {
-      deleteProperty(id)
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteProperty(id)
+      toast({
+        title: 'Draft deleted',
+        description: 'The draft listing has been removed.',
+        variant: 'info',
+      })
+    } catch (error) {
+      console.error('Error deleting draft listing:', error)
+      toast({
+        title: 'Failed to delete draft',
+        description: 'Please try again shortly.',
+        variant: 'destructive',
+      })
     }
   }
 
-  const handleBulkUploadComplete = (draftListing: any) => {
-    console.log('📥 Received enhanced draft listing:', draftListing)
+  const handleBulkUploadComplete = async (incoming: UploadDraftListing[] | UploadDraftListing) => {
+    const listingsArray = Array.isArray(incoming) ? incoming : [incoming]
+    const mergedListing = mergeUploadDraftListings(listingsArray)
+
+    if (!mergedListing) {
+      console.warn('No draft listings returned from upload processor.')
+      return
+    }
+
+    console.log('📥 Received enhanced draft listing batch:', mergedListing)
     
+    const draftListing = mergedListing
+    const fileSummaryText = listingsArray.length === 1
+      ? listingsArray[0]?.fileName ?? '1 file'
+      : `${listingsArray.length} files`
+
     // Convert the enhanced draft listing format to our MLSProperty format
     const convertedProperties = draftListing.data.map((record: any, index: number) => {
       // Map the enhanced field mappings to our property structure
@@ -207,177 +696,655 @@ export default function DraftListings() {
         validationErrors: draftListing.validationErrors || []
       }
 
-      // Apply field mappings from the enhanced system
-      draftListing.fieldMapping.forEach((mapping: any) => {
-        const value = record[mapping.inputField]
-        if (value !== undefined && value !== null && value !== '') {
-          // Map to our property structure based on MLS standard names
-          switch (mapping.mlsField.standardName) {
-            case 'MLSNumber':
-              mappedProperty.mlsNumber = String(value)
-              break
-            case 'ListPrice':
-              mappedProperty.listPrice = Number(value) || 0
-              break
-            case 'OriginalListPrice':
-              mappedProperty.originalListPrice = Number(value)
-              break
-            case 'PropertyType':
-              mappedProperty.propertyType = String(value)
-              break
-            case 'PropertySubType':
-              mappedProperty.propertySubType = String(value)
-              break
-            case 'ArchitecturalStyle':
-              mappedProperty.architecturalStyle = String(value)
-              break
-            case 'YearBuilt':
-              mappedProperty.yearBuilt = Number(value) || 0
-              break
-            case 'LivingArea':
-              mappedProperty.livingAreaSqFt = Number(value) || 0
-              break
-            case 'BedroomsTotal':
-              mappedProperty.bedrooms = Number(value) || 0
-              break
-            case 'BathroomsFull':
-              mappedProperty.bathrooms = Number(value) || 0
-              break
-            case 'BathroomsHalf':
-              mappedProperty.bathroomsHalf = Number(value) || 0
-              break
-            case 'BathroomsThreeQuarter':
-              mappedProperty.bathroomsThreeQuarter = Number(value) || 0
-              break
-            case 'StoriesTotal':
-              mappedProperty.stories = Number(value)
-              break
-            case 'StreetNumber':
-              mappedProperty.streetNumber = String(value)
-              break
-            case 'StreetName':
-              mappedProperty.streetName = String(value)
-              break
-            case 'StreetSuffix':
-              mappedProperty.streetSuffix = String(value)
-              break
-            case 'City':
-              mappedProperty.city = String(value)
-              break
-            case 'StateOrProvince':
-              mappedProperty.state = String(value)
-              break
-            case 'PostalCode':
-              mappedProperty.zipCode = String(value)
-              break
-            case 'County':
-              mappedProperty.county = String(value)
-              break
-            case 'SubdivisionName':
-              mappedProperty.subdivision = String(value)
-              break
-            case 'ParcelID':
-              mappedProperty.parcelID = String(value)
-              break
-            case 'LotSizeSqFt':
-              mappedProperty.lotSize = Number(value) || 0
-              break
-            case 'GarageSpaces':
-              mappedProperty.garageSpaces = Number(value)
-              break
-            case 'TaxesAnnual':
-              mappedProperty.taxes = Number(value)
-              break
-            case 'TaxYear':
-              mappedProperty.taxYear = Number(value)
-              break
-            case 'AssociationFee':
-              mappedProperty.hoaFee = Number(value)
-              break
-            case 'ListingAgentFullName':
-              mappedProperty.listingAgentName = String(value)
-              break
-            case 'ListingAgentLicense':
-              mappedProperty.listingAgentLicense = String(value)
-              break
-            case 'ListingAgentPhone':
-              mappedProperty.listingAgentPhone = String(value)
-              break
-            case 'ListingAgentEmail':
-              mappedProperty.listingAgentEmail = String(value)
-              break
-            case 'ListingOfficeName':
-              mappedProperty.brokerage = String(value)
-              break
-            case 'ListingOfficeLicense':
-              mappedProperty.brokerageLicense = String(value)
-              break
-            case 'PhotoURLs':
-              if (typeof value === 'string') {
-                mappedProperty.photos = value.split(',').map(url => url.trim()).filter(url => url)
-              }
-              break
-            case 'PublicRemarks':
-              mappedProperty.publicRemarks = String(value)
-              break
-            case 'BrokerRemarks':
-              mappedProperty.brokerRemarks = String(value)
-              break
-            case 'ShowingInstructions':
-              mappedProperty.showingInstructions = String(value)
-              break
-            // Enhanced feature fields
-            case 'ArchitecturalStyle':
-              mappedProperty.architecturalStyle = String(value)
-              break
-            case 'Flooring':
-              mappedProperty.flooring = String(value)
-              break
-            case 'PoolFeatures':
-              mappedProperty.poolFeatures = String(value)
-              break
-            case 'FireplaceFeatures':
-              mappedProperty.fireplaceFeatures = String(value)
-              break
-            case 'KitchenFeatures':
-              mappedProperty.kitchenFeatures = String(value)
-              break
-            case 'PrimarySuite':
-              mappedProperty.primarySuite = String(value)
-              break
-            case 'LaundryFeatures':
-              mappedProperty.laundryFeatures = String(value)
-              break
-            case 'ConstructionMaterials':
-              mappedProperty.constructionMaterials = String(value)
-              break
-            case 'Roof':
-              mappedProperty.roofType = String(value)
-              break
-            case 'FoundationDetails':
-              mappedProperty.foundationDetails = String(value)
-              break
-            case 'ExteriorFeatures':
-              mappedProperty.exteriorFeatures = String(value)
-              break
-            case 'View':
-              mappedProperty.propertyView = String(value)
-              break
-            case 'WaterSource':
-              mappedProperty.waterSource = String(value)
-              break
-            case 'Sewer':
-              mappedProperty.sewerSystem = String(value)
-              break
-            case 'HeatingType':
-              mappedProperty.heatingType = String(value)
-              break
-            case 'CoolingType':
-              mappedProperty.coolingType = String(value)
-              break
-          }
+      const toTrimmedString = (input: unknown): string | undefined => {
+        if (input === undefined || input === null) return undefined
+        const str = typeof input === 'string' ? input.trim() : String(input).trim()
+        return str.length > 0 ? str : undefined
+      }
+
+      const toNumericValue = (input: unknown): number | undefined => {
+        if (input === undefined || input === null) return undefined
+        if (typeof input === 'number' && Number.isFinite(input)) return input
+        const cleaned = String(input).replace(/[^0-9.\-]/g, '')
+        if (!cleaned) return undefined
+        const num = Number(cleaned)
+        return Number.isFinite(num) ? num : undefined
+      }
+
+      const toStringArray = (input: unknown): string[] | undefined => {
+        if (Array.isArray(input)) {
+          const filtered = input
+            .map(item => toTrimmedString(item))
+            .filter((item): item is string => Boolean(item))
+          return filtered.length > 0 ? filtered : undefined
+        }
+        const str = toTrimmedString(input)
+        if (!str) return undefined
+        const parts = str
+          .split(/[;,]/)
+          .map(part => part.trim())
+          .filter(Boolean)
+        return parts.length > 0 ? parts : undefined
+      }
+
+      const isMeaningful = (value: unknown) => {
+        if (value === undefined || value === null) return false
+        if (typeof value === 'string') return value.trim().length > 0
+        return true
+      }
+
+      const normalizedRecord = new Map<string, unknown>()
+      Object.entries(record || {}).forEach(([key, value]) => {
+        const normalizedKey = key.toLowerCase()
+        if (!normalizedRecord.has(normalizedKey) && isMeaningful(value)) {
+          normalizedRecord.set(normalizedKey, value)
+        }
+
+        const compactKey = normalizedKey.replace(/[^a-z0-9]/g, '')
+        if (compactKey && !normalizedRecord.has(compactKey) && isMeaningful(value)) {
+          normalizedRecord.set(compactKey, value)
         }
       })
+
+      const pickValue = (...keys: string[]): unknown => {
+        for (const key of keys) {
+          if (key in (record || {})) {
+            const direct = record[key]
+            if (isMeaningful(direct)) return direct
+          }
+          const normalized = normalizedRecord.get(key.toLowerCase())
+          if (isMeaningful(normalized)) return normalized
+        }
+        return undefined
+      }
+
+      const ensureString = (propertyKey: string, ...candidates: string[]) => {
+        const current = toTrimmedString((mappedProperty as any)[propertyKey])
+        if (!current) {
+          const fallback = toTrimmedString(pickValue(...candidates))
+          if (fallback) {
+            (mappedProperty as any)[propertyKey] = fallback
+          }
+        }
+      }
+
+      const ensureNumber = (propertyKey: string, ...candidates: string[]) => {
+        const current = (mappedProperty as any)[propertyKey]
+        if (current === undefined || current === null) {
+          const fallback = toNumericValue(pickValue(...candidates))
+          if (fallback !== undefined) {
+            (mappedProperty as any)[propertyKey] = fallback
+          }
+        }
+      }
+
+      const ensureStringArray = (propertyKey: string, ...candidates: string[]) => {
+        const current = (mappedProperty as any)[propertyKey]
+        if (!Array.isArray(current) || current.length === 0) {
+          const fallback = toStringArray(pickValue(...candidates))
+          if (fallback && fallback.length > 0) {
+            (mappedProperty as any)[propertyKey] = fallback
+          }
+        }
+      }
+
+      const normalizePropertyTypeValue = (input: unknown): string | undefined => {
+        const str = toTrimmedString(input)
+        if (!str) return undefined
+        const lower = str.toLowerCase()
+        if (/(residential|single|condo|town|multi|duplex|villa|mobile|manufactured)/.test(lower)) return 'residential'
+        if (/(commercial|office|retail|industrial|warehouse|mixed use|mixed-use)/.test(lower)) return 'commercial'
+        if (/(land|lot|acre|parcel|farm|agricultural)/.test(lower)) return 'land'
+        if (/(rental|lease|rent)/.test(lower)) return 'rental'
+        return undefined
+      }
+
+      // Apply field mappings from the enhanced system
+      draftListing.fieldMapping.forEach((mapping: any) => {
+        const rawValue = record[mapping.inputField]
+        if (!isMeaningful(rawValue)) {
+          return
+        }
+
+        const standardName = (mapping.mlsField?.standardName || '').toString().toLowerCase()
+
+        switch (standardName) {
+          case 'mlsnumber': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.mlsNumber = value
+            break
+          }
+          case 'status': {
+            const value = toTrimmedString(rawValue)
+            if (value) (mappedProperty as any).sourceStatus = value
+            break
+          }
+          case 'listprice': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.listPrice = value
+            break
+          }
+          case 'price': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) {
+              if (mapping.inputField && /original/i.test(mapping.inputField)) {
+                mappedProperty.originalListPrice = value
+              } else if (mappedProperty.listPrice === undefined) {
+                mappedProperty.listPrice = value
+              }
+            }
+            break
+          }
+          case 'originallistprice':
+          case 'previousprice':
+          case 'priceoriginal': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.originalListPrice = value
+            break
+          }
+          case 'propertytype': {
+            const value = toTrimmedString(rawValue)
+            if (value) {
+              mappedProperty.propertyType = value
+              ;(mappedProperty as any).rawPropertyType = value
+            }
+            break
+          }
+          case 'propertycategory': {
+            const value = toTrimmedString(rawValue)
+            if (value) {
+              mappedProperty.propertyType = mappedProperty.propertyType || value
+              ;(mappedProperty as any).PropertyCategory = value
+            }
+            break
+          }
+          case 'propertysubtype': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.propertySubType = value
+            break
+          }
+          case 'architecturalstyle': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.architecturalStyle = value
+            break
+          }
+          case 'yearbuilt': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.yearBuilt = value
+            break
+          }
+          case 'livingarea':
+          case 'livingareasqft':
+          case 'buildingareatotal': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.livingAreaSqFt = value
+            break
+          }
+          case 'bedroomstotal':
+          case 'bedrooms': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.bedrooms = value
+            break
+          }
+          case 'bathroomstotal': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) {
+              mappedProperty.bathroomsTotal = value
+              if (mappedProperty.bathrooms === undefined) {
+                mappedProperty.bathrooms = value
+              }
+            }
+            break
+          }
+          case 'bathroomsfull':
+          case 'bathrooms': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.bathrooms = value
+            break
+          }
+          case 'bathroomshalf': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.bathroomsHalf = value
+            break
+          }
+          case 'bathroomsthreequarter': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.bathroomsThreeQuarter = value
+            break
+          }
+          case 'lotsizeacres':
+          case 'acres': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.lotSizeAcres = value
+            break
+          }
+          case 'storiestotal':
+          case 'stories': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.stories = value
+            break
+          }
+          case 'streetnumber': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.streetNumber = value
+            break
+          }
+          case 'streetname': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.streetName = value
+            break
+          }
+          case 'streetsuffix': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.streetSuffix = value
+            break
+          }
+          case 'streetline':
+          case 'streetaddress':
+          case 'address': {
+            const value = toTrimmedString(rawValue)
+            if (value) (mappedProperty as any).streetLine = value
+            break
+          }
+          case 'city': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.city = value
+            break
+          }
+          case 'state':
+          case 'stateorprovince':
+          case 'province': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.state = value
+            break
+          }
+          case 'zip':
+          case 'zipcode':
+          case 'postalcode': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.zipCode = value
+            break
+          }
+          case 'zipplus4': {
+            const value = toTrimmedString(rawValue)
+            if (value) (mappedProperty as any).zipPlus4 = value
+            break
+          }
+          case 'county':
+          case 'countyorparish': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.county = value
+            break
+          }
+          case 'subdivision':
+          case 'subdivisionname':
+          case 'neighborhood': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.subdivision = value
+            break
+          }
+          case 'parcelid':
+          case 'apn': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.parcelID = value
+            break
+          }
+          case 'latitude':
+          case 'lat': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) (mappedProperty as any).latitude = value
+            break
+          }
+          case 'longitude':
+          case 'long':
+          case 'lng': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) (mappedProperty as any).longitude = value
+            break
+          }
+          case 'lotsizesqft':
+          case 'lotsize':
+          case 'lotsquarefeet': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.lotSize = value
+            break
+          }
+          case 'lotsizeacres':
+          case 'acres': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.lotSizeAcres = value
+            break
+          }
+          case 'garagespaces':
+          case 'garage': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.garageSpaces = value
+            break
+          }
+          case 'taxesannual':
+          case 'taxamount':
+          case 'taxes': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.taxes = value
+            break
+          }
+          case 'taxyear': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.taxYear = value
+            break
+          }
+          case 'associationfee':
+          case 'hoafee':
+          case 'hoa': {
+            const value = toNumericValue(rawValue)
+            if (value !== undefined) mappedProperty.hoaFee = value
+            break
+          }
+          case 'listingagentname':
+          case 'listingagentfullname':
+          case 'agentname': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.listingAgentName = value
+            break
+          }
+          case 'listingagentlicense':
+          case 'agentlicense': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.listingAgentLicense = value
+            break
+          }
+          case 'listingagentphone':
+          case 'agentphone': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.listingAgentPhone = value
+            break
+          }
+          case 'listingagentemail':
+          case 'agentemail': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.listingAgentEmail = value
+            break
+          }
+          case 'listingofficename':
+          case 'brokerage':
+          case 'office': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.brokerage = value
+            break
+          }
+          case 'listingofficelicense':
+          case 'brokeragelicense':
+          case 'officelicense': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.brokerageLicense = value
+            break
+          }
+          case 'photourls':
+          case 'photos': {
+            const value = toStringArray(rawValue)
+            if (value) mappedProperty.photos = value
+            break
+          }
+          case 'publicremarks':
+          case 'remarks':
+          case 'description': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.publicRemarks = value
+            break
+          }
+          case 'brokerremarks':
+          case 'privateremarks': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.brokerRemarks = value
+            break
+          }
+          case 'showinginstructions': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.showingInstructions = value
+            break
+          }
+          case 'flooring': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.flooring = value
+            break
+          }
+          case 'poolfeatures':
+          case 'featurepool': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.poolFeatures = value
+            break
+          }
+          case 'garagetype': {
+            const value = toTrimmedString(rawValue)
+            if (value) (mappedProperty as any).garageType = value
+            break
+          }
+          case 'interiorfeatures':
+          case 'interior': {
+            const value = toTrimmedString(rawValue)
+            if (value) (mappedProperty as any).interiorFeatures = value
+            break
+          }
+          case 'appliances': {
+            const value = toTrimmedString(rawValue)
+            if (value) (mappedProperty as any).appliances = value
+            break
+          }
+          case 'fireplacefeatures': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.fireplaceFeatures = value
+            break
+          }
+          case 'kitchenfeatures':
+          case 'features': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.kitchenFeatures = value
+            break
+          }
+          case 'primarysuite': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.primarySuite = value
+            break
+          }
+          case 'laundryfeatures': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.laundryFeatures = value
+            break
+          }
+          case 'laundry': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.laundryFeatures = value
+            break
+          }
+          case 'constructionmaterials': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.constructionMaterials = value
+            break
+          }
+          case 'construction': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.constructionMaterials = value
+            break
+          }
+          case 'roof': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.roofType = value
+            break
+          }
+          case 'foundationdetails': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.foundationDetails = value
+            break
+          }
+          case 'foundation': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.foundationDetails = value
+            break
+          }
+          case 'exteriorfeatures': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.exteriorFeatures = value
+            break
+          }
+          case 'view': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.propertyView = value
+            break
+          }
+          case 'watersource': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.waterSource = value
+            break
+          }
+          case 'sewer': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.sewerSystem = value
+            break
+          }
+          case 'heatingtype':
+          case 'heating': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.heatingType = value
+            break
+          }
+          case 'coolingtype':
+          case 'cooling': {
+            const value = toTrimmedString(rawValue)
+            if (value) mappedProperty.coolingType = value
+            break
+          }
+          default:
+            break
+        }
+      })
+
+      // Fallbacks: hydrate critical fields even if the fuzzy mapping used aliases
+      ensureString('mlsNumber', 'mlsnumber', 'mls', 'mlsid', 'mls#', 'id')
+      ensureNumber('listPrice', 'listprice', 'price', 'askingprice')
+      ensureNumber('originalListPrice', 'originallistprice', 'originalprice', 'previousprice', 'priceprevious')
+      ensureString('propertyType', 'propertytype', 'propertycategory', 'type')
+      ensureString('propertySubType', 'propertysubtype', 'subtype')
+      ensureString('architecturalStyle', 'architecturalstyle', 'style')
+      ensureNumber('yearBuilt', 'yearbuilt', 'yrbuilt', 'built')
+      ensureNumber('livingAreaSqFt', 'livingareasqft', 'livingarea', 'sqft', 'livingsqft', 'buildingareatotal', 'totalsqft')
+      ensureNumber('bedrooms', 'bedroomstotal', 'bedrooms', 'beds')
+      ensureNumber('bathrooms', 'bathroomstotal', 'bathrooms', 'baths', 'bathroomsfull')
+      ensureNumber('bathroomsHalf', 'bathroomshalf', 'bathshalf', 'halfbaths')
+      ensureNumber('bathroomsThreeQuarter', 'bathroomsthreequarter', 'threequarterbaths')
+      ensureNumber('stories', 'stories', 'storiestotal')
+      ensureString('streetNumber', 'streetnumber', 'street_no', 'stnumber')
+      ensureString('streetName', 'streetname', 'street', 'streetline')
+      ensureString('streetSuffix', 'streetsuffix', 'suffix')
+      ensureString('city', 'city', 'town', 'municipality')
+      ensureString('state', 'state', 'stateorprovince', 'province')
+      ensureString('zipCode', 'zipcode', 'postalcode', 'zip')
+      ensureString('county', 'county', 'countyorparish')
+      ensureString('subdivision', 'subdivision', 'subdivisionname', 'neighborhood')
+      ensureString('parcelID', 'parcelid', 'apn', 'strap', 'parcel')
+      ensureNumber('latitude', 'latitude', 'lat')
+      ensureNumber('longitude', 'longitude', 'long', 'lng')
+      ensureNumber('lotSize', 'lotsizesqft', 'lotsize', 'lotsquarefeet')
+      ensureNumber('lotSizeAcres', 'lotsizeacres', 'acres')
+      ensureNumber('garageSpaces', 'garagespaces', 'garage')
+      ensureString('garageType', 'garagetype')
+      ensureNumber('taxes', 'taxesannual', 'taxamount', 'taxes', 'annualtaxes')
+      ensureNumber('taxYear', 'taxyear')
+      ensureNumber('hoaFee', 'associationfee', 'hoafee', 'hoa')
+      ensureString('listingAgentName', 'listingagentname', 'listingagentfullname', 'agentname')
+      ensureString('listingAgentLicense', 'listingagentlicense', 'agentlicense')
+      ensureString('listingAgentPhone', 'listingagentphone', 'agentphone')
+      ensureString('listingAgentEmail', 'listingagentemail', 'agentemail')
+      ensureString('brokerage', 'listingofficename', 'brokerage', 'office')
+      ensureString('brokerageLicense', 'listingofficelicense', 'brokeragelicense', 'officelicense')
+      ensureStringArray('photos', 'photourls', 'photos', 'imageurls', 'images')
+      ensureString('publicRemarks', 'publicremarks', 'remarks', 'description', 'publicdescription')
+      ensureString('brokerRemarks', 'brokerremarks', 'privateremarks')
+      ensureString('showingInstructions', 'showinginstructions')
+      ensureString('flooring', 'flooring')
+      ensureString('poolFeatures', 'poolfeatures', 'pool', 'featurepool')
+      ensureString('fireplaceFeatures', 'fireplacefeatures')
+      ensureString('kitchenFeatures', 'kitchenfeatures')
+      ensureString('primarySuite', 'primarysuite')
+      ensureString('laundryFeatures', 'laundryfeatures', 'laundry')
+      ensureString('interiorFeatures', 'interiorfeatures', 'interior')
+      ensureString('appliances', 'appliances')
+      ensureString('constructionMaterials', 'constructionmaterials', 'construction')
+      ensureString('roofType', 'roof')
+      ensureString('foundationDetails', 'foundationdetails', 'foundation')
+      ensureString('exteriorFeatures', 'exteriorfeatures')
+      ensureString('propertyView', 'view')
+      ensureString('waterSource', 'watersource')
+      ensureString('sewerSystem', 'sewer', 'sewersystem', 'septic')
+      ensureString('heatingType', 'heating', 'heatingtype')
+      ensureString('coolingType', 'cooling', 'coolingtype')
+
+      const propertyCategoryValue = toTrimmedString(pickValue('propertycategory', 'propertytype', 'type'))
+      if (propertyCategoryValue && !toTrimmedString(mappedProperty.propertyType)) {
+        mappedProperty.propertyType = propertyCategoryValue
+      }
+      if (propertyCategoryValue) {
+        ;(mappedProperty as any).PropertyCategory = propertyCategoryValue
+      }
+
+      const parcelIdentifier = toTrimmedString(pickValue('parcelid', 'parcel', 'apn', 'strap'))
+      if (parcelIdentifier) {
+        mappedProperty.parcelID = mappedProperty.parcelID || parcelIdentifier
+        ;(mappedProperty as any).ParcelID = parcelIdentifier
+      }
+
+      const appliancesValue = toTrimmedString(pickValue('appliances'))
+      if (appliancesValue) {
+        if (!(mappedProperty as any).appliances) {
+          (mappedProperty as any).appliances = appliancesValue
+        }
+        if (!toTrimmedString(mappedProperty.kitchenFeatures)) {
+          mappedProperty.kitchenFeatures = appliancesValue
+        }
+      }
+
+      const normalizedType = normalizePropertyTypeValue(
+        mappedProperty.propertyType ||
+        (mappedProperty as any).rawPropertyType ||
+        (mappedProperty as any).PropertyCategory
+      )
+      if (normalizedType) {
+        mappedProperty.propertyType = normalizedType
+      }
+      if (!mappedProperty.propertySubType) {
+        const rawType = toTrimmedString((mappedProperty as any).rawPropertyType)
+        if (rawType && (!normalizedType || rawType.toLowerCase() !== normalizedType)) {
+          mappedProperty.propertySubType = rawType
+        } else {
+          const rawCategory = toTrimmedString((mappedProperty as any).PropertyCategory)
+          if (rawCategory && (!normalizedType || rawCategory.toLowerCase() !== normalizedType)) {
+            mappedProperty.propertySubType = rawCategory
+          }
+        }
+      }
+
+      const streetLineFallback = toTrimmedString(pickValue('streetline', 'streetaddress', 'address'))
+      if (streetLineFallback) {
+        const detailed = streetLineFallback
+        const exactMatch = detailed.match(/^\s*(\d+[A-Za-z]?)\s+(.+?)\s+([A-Za-z\.]+)\s*$/)
+        if (exactMatch) {
+          if (!toTrimmedString(mappedProperty.streetNumber)) mappedProperty.streetNumber = exactMatch[1]
+          if (!toTrimmedString(mappedProperty.streetName)) mappedProperty.streetName = exactMatch[2]
+          if (!toTrimmedString(mappedProperty.streetSuffix)) mappedProperty.streetSuffix = exactMatch[3]
+        } else {
+          const parts = detailed.split(/\s+/)
+          if (!toTrimmedString(mappedProperty.streetNumber) && /^\d/.test(parts[0] || '')) {
+            mappedProperty.streetNumber = parts[0]
+          }
+          if (!toTrimmedString(mappedProperty.streetSuffix) && parts.length > 2) {
+            const suffixCandidate = parts[parts.length - 1]?.trim()
+            if (suffixCandidate) mappedProperty.streetSuffix = suffixCandidate
+          }
+          if (!toTrimmedString(mappedProperty.streetName)) {
+            const nameCandidate = parts.slice(1, parts.length - 1).join(' ').trim() || parts.slice(1).join(' ').trim()
+            if (nameCandidate) mappedProperty.streetName = nameCandidate
+          }
+        }
+      }
 
       // Ensure required fields have defaults
       return {
@@ -393,6 +1360,7 @@ export default function DraftListings() {
         livingAreaSqFt: mappedProperty.livingAreaSqFt || 0,
         bedrooms: mappedProperty.bedrooms || 0,
         bathrooms: mappedProperty.bathrooms || 0,
+        bathroomsTotal: mappedProperty.bathroomsTotal,
         bathroomsHalf: mappedProperty.bathroomsHalf,
         bathroomsThreeQuarter: mappedProperty.bathroomsThreeQuarter,
         stories: mappedProperty.stories,
@@ -405,8 +1373,12 @@ export default function DraftListings() {
         county: mappedProperty.county || '',
         subdivision: mappedProperty.subdivision,
         parcelID: mappedProperty.parcelID,
+        latitude: (mappedProperty as any).latitude,
+        longitude: (mappedProperty as any).longitude,
         lotSize: mappedProperty.lotSize || 0,
+        lotSizeAcres: mappedProperty.lotSizeAcres,
         garageSpaces: mappedProperty.garageSpaces,
+        garageType: (mappedProperty as any).garageType,
         taxes: mappedProperty.taxes,
         taxYear: mappedProperty.taxYear,
         hoaFee: mappedProperty.hoaFee,
@@ -420,13 +1392,15 @@ export default function DraftListings() {
         publicRemarks: mappedProperty.publicRemarks,
         brokerRemarks: mappedProperty.brokerRemarks,
         showingInstructions: mappedProperty.showingInstructions,
-        // Enhanced feature fields
+        // Feature fields
         flooring: mappedProperty.flooring,
         poolFeatures: mappedProperty.poolFeatures,
         fireplaceFeatures: mappedProperty.fireplaceFeatures,
         kitchenFeatures: mappedProperty.kitchenFeatures,
         primarySuite: mappedProperty.primarySuite,
         laundryFeatures: mappedProperty.laundryFeatures,
+        interiorFeatures: (mappedProperty as any).interiorFeatures,
+        appliances: (mappedProperty as any).appliances,
         constructionMaterials: mappedProperty.constructionMaterials,
         roofType: mappedProperty.roofType,
         foundationDetails: mappedProperty.foundationDetails,
@@ -444,10 +1418,61 @@ export default function DraftListings() {
     })
 
     console.log('🔄 Converted properties with enhanced fields:', convertedProperties)
+    if (convertedProperties.length > 0) {
+      console.log('🧾 First converted property preview:', {
+        propertyType: convertedProperties[0].propertyType,
+        propertySubType: convertedProperties[0].propertySubType,
+        parcelID: (convertedProperties[0] as any).parcelID,
+        parcelIdAlt: (convertedProperties[0] as any).parcelId,
+        lotSizeAcres: convertedProperties[0].lotSizeAcres,
+        garageType: (convertedProperties[0] as any).garageType,
+        appliances: (convertedProperties[0] as any).appliances,
+        laundryFeatures: convertedProperties[0].laundryFeatures,
+        constructionMaterials: convertedProperties[0].constructionMaterials,
+        foundationDetails: convertedProperties[0].foundationDetails,
+        architecturalStyle: convertedProperties[0].architecturalStyle,
+        kitchenFeatures: convertedProperties[0].kitchenFeatures,
+        flooring: convertedProperties[0].flooring,
+        poolFeatures: convertedProperties[0].poolFeatures,
+        sourceKeys: Object.keys(convertedProperties[0])
+      })
+    }
     
-    const newProperties = addDraftProperties(convertedProperties)
-    setShowBulkUpload(false)
-    alert(`Successfully imported ${newProperties.length} properties with enhanced field mapping!\n\nDetected fields: ${draftListing.fieldMapping.map((m: any) => m.mlsField.standardName).join(', ')}`)
+    setIsImportingDrafts(true)
+    try {
+      const { created, duplicates } = await addDraftProperties(convertedProperties)
+      setShowBulkUpload(false)
+
+      if (created.length > 0) {
+        toast({
+          title: 'Draft listings imported',
+          description: `Successfully imported ${created.length} propert${created.length === 1 ? 'y' : 'ies'} from ${fileSummaryText}.`,
+          variant: 'info',
+        })
+      }
+
+      if (duplicates.length > 0) {
+        const duplicateDetails = duplicates
+          .map((dup) => {
+            const identifier = dup.mlsNumber && dup.mlsNumber.trim().length > 0
+              ? `MLS ${dup.mlsNumber}`
+              : dup.address || 'Listing'
+            const reasonLabel = dup.reason === 'batch_duplicate'
+              ? 'duplicate in upload file'
+              : 'already exists'
+            return `${identifier} (${reasonLabel})`
+          })
+          .join(', ')
+
+        toast({
+          title: 'Duplicate listings skipped',
+          description: duplicateDetails,
+          variant: 'destructive',
+        })
+      }
+    } finally {
+      setIsImportingDrafts(false)
+    }
   }
 
   const updateEditingProperty = (field: keyof MLSProperty, value: any) => {
@@ -471,17 +1496,18 @@ export default function DraftListings() {
   // Bulk selection functions
   const handleSelectListing = (id: string, checked: boolean) => {
     if (checked) {
-      setSelectedListings([...selectedListings, id])
+      setSelectedListings((prev) => Array.from(new Set([...prev, id])))
     } else {
-      setSelectedListings(selectedListings.filter(listingId => listingId !== id))
+      setSelectedListings((prev) => prev.filter(listingId => listingId !== id))
     }
   }
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedListings(draftListings.map(listing => listing.id))
+      const ids = filteredDraftListings.map(listing => listing.id)
+      setSelectedListings((prev) => Array.from(new Set([...prev, ...ids])))
     } else {
-      setSelectedListings([])
+      setSelectedListings((prev) => prev.filter(id => !filteredDraftListings.some(listing => listing.id === id)))
     }
   }
 
@@ -489,53 +1515,58 @@ export default function DraftListings() {
     setShowBulkDeleteConfirm(true)
   }
 
-  const confirmBulkDelete = () => {
-    selectedListings.forEach(id => {
-      deleteProperty(id)
-    })
+  const confirmBulkDelete = async () => {
+    for (const id of selectedListings) {
+      await deleteProperty(id)
+    }
     setSelectedListings([])
     setShowBulkDeleteConfirm(false)
   }
 
-  const isAllSelected = selectedListings.length === draftListings.length && draftListings.length > 0
-  const isIndeterminate = selectedListings.length > 0 && selectedListings.length < draftListings.length
+  const isAllSelected = filteredDraftListings.length > 0 && filteredDraftListings.every(listing => selectedListings.includes(listing.id))
+  const isIndeterminate = filteredDraftListings.length > 0 && !isAllSelected && filteredDraftListings.some(listing => selectedListings.includes(listing.id))
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="relative min-h-screen bg-gray-50 p-6 space-y-6">
+      {isImportingDrafts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-4 shadow-xl">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+            <span className="text-sm font-medium text-gray-700">
+              Processing uploaded listings...
+            </span>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Draft Listings</h1>
-          <p className="text-gray-600">Manage your property listings in progress ({draftListings.length} drafts)</p>
+          <p className="text-gray-600">
+            Manage your property listings in progress ({filteredDraftListings.length} of {draftListings.length} drafts)
+          </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setShowFiltersDialog(true)}>
             <Filter className="w-4 h-4 mr-2" />
             Filter
+            {activeFilterCount > 0 && (
+              <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>
+            )}
           </Button>
           <Button onClick={() => setShowBulkUpload(true)} className="bg-blue-600 hover:bg-blue-700">
             <Upload className="w-4 h-4 mr-2" />
-            Enhanced Upload
+            Upload Listings
           </Button>
-          <Button>
+          <Button onClick={openNewDraftDialog}>
             <Plus className="w-4 h-4 mr-2" />
             New Draft
           </Button>
         </div>
       </div>
 
-      {/* Enhanced Upload Alert */}
-      <Alert>
-        <CheckCircle className="h-4 w-4" />
-        <AlertDescription>
-          <strong>Enhanced Field Mapping Active:</strong> Upload system now includes automatic address parsing, 
-          enhanced feature detection (Architectural Style, Flooring, Pool Features, Kitchen Features, etc.), 
-          Parcel ID mapping, and Field,Value CSV format support. Check console for detailed mapping results.
-        </AlertDescription>
-      </Alert>
-
       {/* Bulk Actions Bar */}
-      {draftListings.length > 0 && (
+      {filteredDraftListings.length > 0 && (
         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
           <div className="flex items-center space-x-4">
             <Checkbox
@@ -570,7 +1601,7 @@ export default function DraftListings() {
 
       {/* Draft listings grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {draftListings.map((draft) => {
+        {filteredDraftListings.map((draft) => {
           const errors = validateProperty(draft)
           const canPublish = errors.length === 0
           const isPublishing = publishingId === draft.id
@@ -620,7 +1651,7 @@ export default function DraftListings() {
                     {draft.architecturalStyle && <div>🏛️ {draft.architecturalStyle}</div>}
                     {draft.stories && <div>🏢 {draft.stories} stories</div>}
                     {draft.parcelID && <div>📋 Parcel: {draft.parcelID}</div>}
-                    <div>📸 {draft.photos?.length || 0}/4 photos</div>
+                    <div>📸 {draft.photos?.length || 0}/{MIN_PROPERTY_PHOTOS} photos</div>
                     {errors.length > 0 && (
                       <div className="flex items-center text-red-600 text-xs">
                         <AlertCircle className="w-3 h-3 mr-1" />
@@ -660,32 +1691,72 @@ export default function DraftListings() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => handlePublish(draft.id)}
-                      disabled={!canPublish || isPublishing}
-                    >
-                      {isPublishing ? (
-                        <>
-                          <div className="w-4 h-4 mr-1 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                          Publishing...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4 mr-1" />
-                          Publish
-                        </>
-                      )}
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleDelete(draft.id)}
-                      disabled={isPublishing}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          size="sm" 
+                          className="flex-1"
+                          disabled={!canPublish || isPublishing}
+                        >
+                          {isPublishing ? (
+                            <>
+                              <div className="w-4 h-4 mr-1 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                              Publishing...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4 mr-1" />
+                              Publish
+                            </>
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Publish this listing?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Publishing will make this listing visible to clients. Confirm that all required data and media are complete before proceeding.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => { void handlePublish(draft.id) }}
+                            disabled={isPublishing}
+                          >
+                            Publish listing
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          disabled={isPublishing}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete draft listing?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. The draft and its data will be permanently removed.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive hover:bg-destructive/90"
+                            onClick={() => { void handleDelete(draft.id) }}
+                          >
+                            Delete draft
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardContent>
@@ -699,9 +1770,7 @@ export default function DraftListings() {
         <div className="text-center py-12">
           <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No draft listings</h3>
-          <p className="text-gray-600 mb-6">
-            Upload property listings using the enhanced bulk upload feature or create individual drafts
-          </p>
+          <p className="text-gray-600 mb-6">Nothing here… yet. Be the first to change that.</p>
           <Button onClick={() => setShowBulkUpload(true)}>
             <Upload className="w-4 h-4 mr-2" />
             Upload Your First Listings
@@ -741,21 +1810,55 @@ export default function DraftListings() {
         </DialogContent>
       </Dialog>
 
-      {/* Enhanced Bulk Upload Dialog */}
+      {/* Bulk Upload Dialog */}
       <BulkListingUpload
         isOpen={showBulkUpload}
         onClose={() => setShowBulkUpload(false)}
         onUploadComplete={handleBulkUploadComplete}
       />
 
-      {/* Enhanced Edit Property Dialog with MLS Fields */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+      {/* Filters Dialog */}
+      <Dialog open={showFiltersDialog} onOpenChange={setShowFiltersDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Filter Draft Listings</DialogTitle>
+            <DialogDescription>Refine the draft listings displayed below.</DialogDescription>
+          </DialogHeader>
+          <PropertyFiltersComponent
+            filters={filters}
+            onFiltersChange={setFilters}
+            agents={agentsOptions}
+            onSavePreset={(name, presetFilters) => {
+              setSavedFilterPresets((prev) => {
+                const filtered = prev.filter((preset) => preset.name.toLowerCase() !== name.toLowerCase())
+                return [...filtered, { name, filters: cloneFilters(presetFilters) }]
+              })
+            }}
+            onLoadPreset={(presetFilters) => {
+              setFilters(cloneFilters(presetFilters))
+            }}
+            savedPresets={savedFilterPresets}
+            propertyCount={filteredDraftListings.length}
+            totalCount={draftListings.length}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Property Dialog with MLS Fields */}
+      <Dialog
+        open={showEditDialog}
+        onOpenChange={(open) => {
+          setShowEditDialog(open)
+          if (!open) {
+            setEditingProperty(null)
+            setIsNewDraft(false)
+          }
+        }}
+      >
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit MLS Property Listing</DialogTitle>
-            <DialogDescription>
-              Update all property details using enhanced MLS-compliant fields including address parsing, feature detection, and Parcel ID
-            </DialogDescription>
+            <DialogTitle>Add Property Listing</DialogTitle>
+            <DialogDescription />
           </DialogHeader>
           
           {editingProperty && (
@@ -913,7 +2016,7 @@ export default function DraftListings() {
                 </div>
               </TabsContent>
 
-              {/* Enhanced Location Tab with Parcel ID */}
+              {/* Location Tab with Parcel ID */}
               <TabsContent value="location" className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div>
@@ -996,9 +2099,40 @@ export default function DraftListings() {
                     />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="latitude">Latitude *</Label>
+                    <Input
+                      id="latitude"
+                      type="number"
+                      step="0.000001"
+                      value={editingProperty.latitude ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        updateEditingProperty('latitude', value === '' ? undefined : parseFloat(value))
+                      }}
+                      placeholder="28.538336"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="longitude">Longitude *</Label>
+                    <Input
+                      id="longitude"
+                      type="number"
+                      step="0.000001"
+                      value={editingProperty.longitude ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        updateEditingProperty('longitude', value === '' ? undefined : parseFloat(value))
+                      }}
+                      placeholder="-81.379234"
+                    />
+                  </div>
+                </div>
               </TabsContent>
 
-              {/* Enhanced Features Tab */}
+              {/* Features Tab */}
               <TabsContent value="features" className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1017,6 +2151,18 @@ export default function DraftListings() {
                       value={editingProperty.flooring || ''}
                       onChange={(e) => updateEditingProperty('flooring', e.target.value)}
                       placeholder="e.g., Hardwood, Carpet, Tile"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="garageType">Garage Type</Label>
+                    <Input
+                      id="garageType"
+                      value={editingProperty.garageType || ''}
+                      onChange={(e) => updateEditingProperty('garageType', e.target.value)}
+                      placeholder="e.g., Attached, Detached, Carport"
                     />
                   </div>
                 </div>
@@ -1074,12 +2220,33 @@ export default function DraftListings() {
                     />
                   </div>
                   <div>
+                    <Label htmlFor="appliances">Appliances</Label>
+                    <Input
+                      id="appliances"
+                      value={editingProperty.appliances || ''}
+                      onChange={(e) => updateEditingProperty('appliances', e.target.value)}
+                      placeholder="e.g., Dishwasher, Disposal, Microwave, Range, Refrigerator"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <Label htmlFor="constructionMaterials">Construction Materials</Label>
                     <Input
                       id="constructionMaterials"
                       value={editingProperty.constructionMaterials || ''}
                       onChange={(e) => updateEditingProperty('constructionMaterials', e.target.value)}
                       placeholder="e.g., Brick, Vinyl Siding, Stone"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="interiorFeatures">Interior Features</Label>
+                    <Input
+                      id="interiorFeatures"
+                      value={editingProperty.interiorFeatures || ''}
+                      onChange={(e) => updateEditingProperty('interiorFeatures', e.target.value)}
+                      placeholder="e.g., Walk-In Closet, Pantry, Ceiling Fans"
                     />
                   </div>
                 </div>
@@ -1300,12 +2467,12 @@ export default function DraftListings() {
               {/* Media Tab with Photo Upload */}
               <TabsContent value="media" className="space-y-4">
                 <div>
-                  <Label>Property Photos * (Minimum 4 required)</Label>
+                  <Label>Property Photos * (Minimum {MIN_PROPERTY_PHOTOS}, Maximum {MAX_PROPERTY_PHOTOS})</Label>
                   <PhotoUpload
                     photos={editingProperty.photos || []}
                     onPhotosChange={handlePhotosChange}
-                    minPhotos={4}
-                    maxPhotos={20}
+                    minPhotos={MIN_PROPERTY_PHOTOS}
+                    maxPhotos={MAX_PROPERTY_PHOTOS}
                   />
                 </div>
 

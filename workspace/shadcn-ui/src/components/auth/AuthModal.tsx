@@ -63,13 +63,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           onClose()
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log('[AuthModal] signing in with password', { email })
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
+        console.log('[AuthModal] signInWithPassword result', { data, error })
         
         if (error) {
-          // Check if it's an invalid password error
           if (error.message.toLowerCase().includes('invalid') || 
               error.message.toLowerCase().includes('password') ||
               error.message.toLowerCase().includes('credentials')) {

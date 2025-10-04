@@ -1,424 +1,259 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { toast } from '@/components/ui/use-toast'
+import { createCheckoutSession } from '@/lib/api/billing'
 import { useAuth } from '@/contexts/AuthContext'
-import { createCheckoutSession } from '@/api/stripe'
-import { STRIPE_PRICE_IDS, isDemoMode, isStripeConfigured, getStripeConfig } from '@/lib/stripe'
-import { 
-  Check, 
-  Crown, 
-  Zap, 
-  Shield, 
-  Headphones,
+import {
+  Check,
   Loader2,
-  Building2,
-  Sparkles,
-  AlertCircle,
-  Info
+  Megaphone,
+  ShieldCheck,
+  User,
+  Users2,
 } from 'lucide-react'
 
-const plans = [
+interface Plan {
+  id: string
+  name: string
+  description: string
+  product: 'agent_solo' | 'brokerage'
+  seats: number
+  monthlyPrice: number
+  yearlyPrice: number
+  badge?: string
+  badgeTone?: 'primary' | 'secondary'
+  features: string[]
+}
+
+const plans: Plan[] = [
   {
-    id: 'basic',
-    name: 'Basic Broker',
-    price: 79,
-    priceId: STRIPE_PRICE_IDS.basic,
-    description: 'Perfect for individual agents getting started',
-    badge: null,
-    icon: Building2,
-    color: 'bg-blue-500',
+    id: 'agent-solo',
+    name: 'Agent Solo',
+    description: 'Full Hatch toolkit for a single agent or ISA working solo.',
+    product: 'agent_solo',
+    seats: 1,
+    monthlyPrice: 79,
+    yearlyPrice: 828,
     features: [
-      'Up to 25 active listings',
-      'Basic CRM tools',
-      'Email support',
-      'Mobile app access',
-      'Basic analytics',
-      'Lead capture forms',
-    ]
+      '1 seat with full feature access',
+      'AI listing copy + marketing assets',
+      'Automated email & SMS follow ups',
+      'Lead routing + personal CRM workflows',
+      'MLS + portal sync for your listings',
+    ],
   },
   {
-    id: 'growth',
-    name: 'Growth Broker',
-    price: 149,
-    priceId: STRIPE_PRICE_IDS.growth,
-    description: 'Ideal for growing teams and established agents',
+    id: 'brokerage-25',
+    name: 'Brokerage 25',
+    description: 'Bundle for new teams that need branded marketing and seat governance.',
+    product: 'brokerage',
+    seats: 25,
+    monthlyPrice: 499,
+    yearlyPrice: 5290,
+    badge: 'Great for new teams',
+    badgeTone: 'secondary',
+    features: [
+      '25 seats with role-based permissions',
+      'Centralized listings + lead routing',
+      'Shared asset library & templates',
+      'Seat usage analytics & basic dashboards',
+      'Priority onboarding support',
+    ],
+  },
+  {
+    id: 'brokerage-50',
+    name: 'Brokerage 50',
+    description: 'Scale-ready plan with advanced analytics and automation hooks.',
+    product: 'brokerage',
+    seats: 50,
+    monthlyPrice: 899,
+    yearlyPrice: 9490,
     badge: 'Most Popular',
-    icon: Zap,
-    color: 'bg-green-500',
+    badgeTone: 'primary',
     features: [
-      'Up to 100 active listings',
-      'Advanced CRM with automation',
-      'Priority email & chat support',
-      'Team collaboration tools',
-      'Advanced analytics & reporting',
-      'Lead capture & nurturing',
-      'MLS integration',
-      'Custom branding',
-      'Social media tools',
-    ]
+      '50 seats + billing overrides',
+      'Advanced analytics & goal tracking',
+      'Compliance logs & document vault',
+      'Automation webhooks + integrations',
+      'Dedicated CSM & quarterly reviews',
+    ],
   },
   {
-    id: 'elite',
-    name: 'Elite Broker',
-    price: 249,
-    priceId: STRIPE_PRICE_IDS.elite,
-    description: 'For large teams and brokerages needing everything',
-    badge: 'Best Value',
-    icon: Crown,
-    color: 'bg-purple-500',
+    id: 'brokerage-100',
+    name: 'Brokerage 100',
+    description: 'Enterprise governance, security reviews, and high-volume tooling.',
+    product: 'brokerage',
+    seats: 100,
+    monthlyPrice: 1499,
+    yearlyPrice: 15890,
     features: [
-      'Unlimited active listings',
-      'Full CRM suite with AI insights',
-      'Dedicated account manager',
-      'Advanced team management',
-      'Custom analytics dashboard',
-      'Advanced lead scoring',
-      'Full MLS & third-party integrations',
-      'White-label solution',
-      'Advanced marketing automation',
-      'API access',
-      'Custom training sessions',
-    ]
-  }
+      '100 seats with granular policies',
+      'Custom SSO + security assessments',
+      'Multi-market MLS integrations',
+      'Migration playbooks & workshops',
+      'Priority SLA + roadmap input',
+    ],
+  },
 ]
 
-export default function Pricing() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
+const contactSales = {
+  heading: 'Need more than 100 seats?',
+  body: 'Talk with us for bespoke bundles, enterprise onboarding, and tailored SLAs.',
+  actionText: 'Contact Sales',
+  actionHref: 'mailto:sales@hatch.dev?subject=Custom%20Hatch%20Plan',
+}
+
+const Pricing: React.FC = () => {
+  const { activeOrgId, activeMembership } = useAuth()
+  const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly')
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [stripeConfig, setStripeConfig] = useState<any>(null)
 
-  useEffect(() => {
-    const config = getStripeConfig()
-    setStripeConfig(config)
-    console.log('🔧 Stripe Configuration:', config)
-    console.log('👤 User authentication state:', { user: !!user, userId: user?.id, email: user?.email })
-  }, [user])
+  const intervalCopy = useMemo(
+    () => ({
+      monthly: { label: '/month', helper: 'Billed monthly' },
+      yearly: { label: '/year', helper: 'Billed annually (2 months free)' },
+    }),
+    []
+  )
 
-  const handleSubscribe = async (plan: typeof plans[0]) => {
-    console.log('🎯 Subscribe button clicked for:', plan.name)
-    console.log('👤 Current user state:', { user: !!user, userId: user?.id, email: user?.email })
+  const renderPrice = (plan: Plan) => {
+    const value = interval === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice
+    return `$${value.toLocaleString()}`
+  }
 
-    setLoadingPlan(plan.id)
-    setError(null)
-
-    // Add timeout to prevent infinite spinning
-    const timeoutId = setTimeout(() => {
-      console.log('⏰ Checkout timeout - stopping loading state')
-      setLoadingPlan(null)
-      setError('Checkout timed out. Please try again.')
-    }, 15000)
-
+  const handleCheckout = async (plan: Plan) => {
     try {
-      // Use real user if authenticated, otherwise create demo user
-      const userInfo = user && user.id && user.email 
-        ? { id: user.id, email: user.email }
-        : { id: `demo_${Date.now()}`, email: 'demo@example.com' }
-
-      console.log('🚀 Starting checkout process for:', plan.name)
-      console.log('👤 User info for checkout:', userInfo)
-      console.log('💳 Price ID:', plan.priceId)
-
-      const result = await createCheckoutSession({
-        priceId: plan.priceId,
-        userId: userInfo.id,
-        userEmail: userInfo.email,
-        planName: plan.name,
+      setLoadingPlan(plan.id)
+      const { url } = await createCheckoutSession({
+        product: plan.product,
+        interval,
+        seats: plan.seats,
+        orgId: activeOrgId ?? undefined,
+        orgName: activeMembership?.org?.name,
       })
-
-      // Clear timeout since we got a result
-      clearTimeout(timeoutId)
-
-      console.log('✅ Checkout session created:', result)
-
-      if (result?.url) {
-        console.log('🔄 Redirecting to checkout:', result.url)
-        
-        // Ensure we're not redirecting to /auth
-        if (result.url.includes('/auth')) {
-          console.error('❌ Invalid redirect URL detected:', result.url)
-          throw new Error('Invalid checkout URL - please try again')
-        }
-        
-        // Immediate redirect
-        window.location.href = result.url
-      } else {
-        throw new Error('No checkout URL received from session')
-      }
-    } catch (err) {
-      clearTimeout(timeoutId)
-      console.error('❌ Checkout error:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
-      setError(`Checkout failed: ${errorMessage}`)
+      window.location.href = url
+    } catch (error) {
+      console.error('Checkout failed', error)
+      const description = error instanceof Error ? error.message : 'Please try again in a few minutes.'
+      toast({
+        title: 'Unable to start checkout',
+        description,
+        variant: 'destructive',
+      })
+    } finally {
       setLoadingPlan(null)
     }
   }
 
-  const handleContactSales = () => {
-    window.location.href = 'mailto:sales@hatch.com?subject=Enterprise%20Plan%20Inquiry'
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-16">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            Choose Your Plan
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Unlock the full potential of your real estate business with our professional tools and features.
-          </p>
-          
-          {/* Authentication Status */}
-          <div className="max-w-md mx-auto mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-blue-800 text-sm">
-              {user ? `✅ Logged in as: ${user.email}` : '⚠️ Not logged in - will use demo checkout'}
-            </p>
-          </div>
-          
-          {/* Stripe Configuration Status */}
-          {stripeConfig && (
-            <div className={`max-w-md mx-auto mb-8 p-4 border rounded-lg ${
-              stripeConfig.isConfigured 
-                ? 'bg-green-50 border-green-200' 
-                : 'bg-yellow-50 border-yellow-200'
-            }`}>
-              <div className="flex items-center">
-                <Info className={`w-5 h-5 mr-2 ${
-                  stripeConfig.isConfigured ? 'text-green-600' : 'text-yellow-600'
-                }`} />
-                <p className={`text-sm font-medium ${
-                  stripeConfig.isConfigured ? 'text-green-800' : 'text-yellow-800'
-                }`}>
-                  {stripeConfig.isConfigured ? '✅ Stripe Configured' : '⚠️ Demo Mode'}
-                </p>
-              </div>
-              <p className={`text-xs mt-1 ${
-                stripeConfig.isConfigured ? 'text-green-700' : 'text-yellow-700'
-              }`}>
-                {stripeConfig.isConfigured 
-                  ? 'Real Stripe integration - will redirect to checkout'
-                  : 'Demo mode - will show success page'
-                }
-              </p>
-            </div>
-          )}
-          
-          {error && (
-            <div className="max-w-md mx-auto mb-8 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center">
-                <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
-                <p className="text-red-600 text-sm font-medium">Checkout Error</p>
-              </div>
-              <p className="text-red-600 text-xs mt-1">{error}</p>
-              <button 
-                onClick={() => setError(null)}
-                className="text-red-800 underline text-xs mt-2"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-center justify-center gap-4 mb-8">
-            <Badge variant="secondary" className="px-4 py-2">
-              <Shield className="w-4 h-4 mr-2" />
-              30-day money-back guarantee
-            </Badge>
-            <Badge variant="secondary" className="px-4 py-2">
-              <Headphones className="w-4 h-4 mr-2" />
-              24/7 customer support
-            </Badge>
-          </div>
-        </div>
-
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto mb-16">
-          {plans.map((plan) => {
-            const Icon = plan.icon
-            const isLoading = loadingPlan === plan.id
-            
-            return (
-              <Card 
-                key={plan.id} 
-                className={`relative overflow-hidden transition-all duration-300 hover:shadow-xl ${
-                  plan.badge === 'Most Popular' 
-                    ? 'border-2 border-blue-500 scale-105' 
-                    : 'hover:scale-105'
-                }`}
-              >
-                {plan.badge && (
-                  <div className="absolute top-0 right-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-1 text-sm font-semibold">
-                    {plan.badge === 'Most Popular' && <Crown className="w-3 h-3 inline mr-1" />}
-                    {plan.badge === 'Best Value' && <Zap className="w-3 h-3 inline mr-1" />}
-                    {plan.badge}
-                  </div>
-                )}
-                
-                <CardHeader className="text-center pb-4">
-                  <div className={`w-12 h-12 ${plan.color} rounded-lg flex items-center justify-center mx-auto mb-4`}>
-                    <Icon className="w-6 h-6 text-white" />
-                  </div>
-                  <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
-                  <CardDescription className="text-gray-600 mb-4">
-                    {plan.description}
-                  </CardDescription>
-                  <div className="mb-4">
-                    <span className="text-4xl font-bold text-gray-900">
-                      ${plan.price}
-                    </span>
-                    <span className="text-gray-600">/month</span>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="space-y-6">
-                  <Button 
-                    className="w-full text-lg py-6" 
-                    size="lg"
-                    onClick={() => handleSubscribe(plan)}
-                    disabled={isLoading}
-                    variant={plan.badge === 'Most Popular' ? 'default' : 'outline'}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Checkout...
-                      </>
-                    ) : (
-                      <>
-                        {user ? 'Subscribe Now' : 'Try Demo Checkout'}
-                      </>
-                    )}
-                  </Button>
-                  
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-900 flex items-center">
-                      <Check className="w-4 h-4 mr-2 text-green-600" />
-                      What's included:
-                    </h4>
-                    <ul className="space-y-2">
-                      {plan.features.map((feature, index) => (
-                        <li key={index} className="flex items-start text-sm text-gray-600">
-                          <Check className="w-4 h-4 mr-2 text-green-600 mt-0.5 flex-shrink-0" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-
-        {/* Enterprise Plan */}
-        <div className="max-w-4xl mx-auto mb-16">
-          <Card className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
-            <CardHeader className="text-center">
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <CardTitle className="text-3xl font-bold">Enterprise</CardTitle>
-              <CardDescription className="text-purple-100 text-lg">
-                Custom solution for large organizations
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>✓ Unlimited agents</div>
-                <div>✓ Custom integrations</div>
-                <div>✓ Advanced API access</div>
-                <div>✓ White-label solution</div>
-                <div>✓ Dedicated infrastructure</div>
-                <div>✓ Custom reporting</div>
-                <div>✓ Priority support</div>
-                <div>✓ Custom contracts</div>
-              </div>
-              <Button 
-                variant="secondary" 
-                size="lg" 
-                className="bg-white text-purple-600 hover:bg-gray-100"
-                onClick={handleContactSales}
-              >
-                Contact Sales for Custom Pricing
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* FAQ Section */}
-        <div className="mt-20 max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Frequently Asked Questions
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Can I change plans anytime?</h3>
-                <p className="text-gray-600 text-sm">
-                  Yes! You can upgrade or downgrade your plan at any time. Changes take effect at your next billing cycle.
-                </p>
-              </div>
-              
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Is there a setup fee?</h3>
-                <p className="text-gray-600 text-sm">
-                  No setup fees! You only pay the monthly subscription fee. Start using all features immediately.
-                </p>
-              </div>
-              
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">What payment methods do you accept?</h3>
-                <p className="text-gray-600 text-sm">
-                  We accept all major credit cards (Visa, MasterCard, American Express) and ACH bank transfers.
-                </p>
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Do you offer refunds?</h3>
-                <p className="text-gray-600 text-sm">
-                  Yes! We offer a 30-day money-back guarantee. If you're not satisfied, we'll refund your first month.
-                </p>
-              </div>
-              
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Is my data secure?</h3>
-                <p className="text-gray-600 text-sm">
-                  Absolutely! We use bank-level encryption and are SOC 2 compliant. Your data is always protected.
-                </p>
-              </div>
-              
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Can I cancel anytime?</h3>
-                <p className="text-gray-600 text-sm">
-                  Yes, you can cancel your subscription at any time. You'll continue to have access until your current billing period ends.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Contact Section */}
-        <div className="mt-16 text-center">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">
-            Need help choosing the right plan?
-          </h3>
-          <p className="text-gray-600 mb-6">
-            Our team is here to help you find the perfect solution for your business.
-          </p>
-          <Button variant="outline" size="lg" onClick={handleContactSales}>
-            <Headphones className="w-4 h-4 mr-2" />
-            Contact Sales
+    <div className="px-6 py-10 space-y-10">
+      <div className="text-center space-y-4">
+        <Badge variant="outline" className="gap-2 text-sm">
+          <ShieldCheck className="h-4 w-4" /> Seat-based Hatch subscriptions
+        </Badge>
+        <h1 className="text-4xl font-bold text-gray-900">Choose the plan that fits your brokerage</h1>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          Every plan includes the Hatch marketing, listings, and agent enablement suite. Pick the seat bundle that
+          matches your team — or talk with sales for something custom.
+        </p>
+        <div className="inline-flex items-center gap-2 bg-slate-100 rounded-full p-1">
+          <Button
+            size="sm"
+            variant={interval === 'monthly' ? 'default' : 'ghost'}
+            onClick={() => setInterval('monthly')}
+            className="rounded-full"
+          >
+            Monthly
+          </Button>
+          <Button
+            size="sm"
+            variant={interval === 'yearly' ? 'default' : 'ghost'}
+            onClick={() => setInterval('yearly')}
+            className="rounded-full"
+          >
+            Yearly
           </Button>
         </div>
+        <p className="text-sm text-gray-500">{intervalCopy[interval].helper}</p>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+        {plans.map((plan) => {
+          const badgeTone = plan.badgeTone === 'secondary' ? 'secondary' : 'default'
+          const isPopular = plan.badgeTone === 'primary'
+
+          return (
+            <Card
+              key={plan.id}
+              className={`relative h-full flex flex-col ${
+                isPopular ? 'border-purple-500 ring-2 ring-purple-100 shadow-lg' : 'hover:shadow-lg transition-shadow'
+              }`}
+            >
+              <CardHeader className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    {plan.product === 'agent_solo' ? <User className="h-4 w-4" /> : <Users2 className="h-4 w-4" />}
+                    <span>{plan.seats} seat{plan.seats === 1 ? '' : 's'} included</span>
+                  </div>
+                  {plan.badge && <Badge variant={badgeTone}>{plan.badge}</Badge>}
+                </div>
+                <CardTitle className="text-2xl font-bold text-gray-900">{plan.name}</CardTitle>
+                <CardDescription className="text-gray-600 leading-relaxed">
+                  {plan.description}
+                </CardDescription>
+                <div>
+                  <span className="text-4xl font-bold text-gray-900">{renderPrice(plan)}</span>
+                  <span className="text-gray-500 ml-2">{intervalCopy[interval].label}</span>
+                </div>
+              </CardHeader>
+
+              <CardContent className="flex-1 flex flex-col gap-6">
+                <div className="space-y-3">
+                  {plan.features.map((feature) => (
+                    <div key={feature} className="flex items-start gap-3 text-sm text-gray-700">
+                      <Check className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  className="mt-auto"
+                  onClick={() => handleCheckout(plan)}
+                  disabled={loadingPlan === plan.id}
+                >
+                  {loadingPlan === plan.id ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Redirecting…
+                    </span>
+                  ) : (
+                    'Select Plan'
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      <Card className="max-w-5xl mx-auto border-dashed">
+        <CardContent className="p-8 flex flex-col md:flex-row items-start md:items-center gap-6">
+          <div className="flex items-center justify-center w-14 h-14 rounded-full bg-blue-100 text-blue-700">
+            <Megaphone className="h-6 w-6" />
+          </div>
+          <div className="space-y-2 flex-1">
+            <h2 className="text-2xl font-semibold text-gray-900">{contactSales.heading}</h2>
+            <p className="text-gray-600">{contactSales.body}</p>
+          </div>
+          <Button asChild variant="outline" className="whitespace-nowrap">
+            <a href={contactSales.actionHref}>{contactSales.actionText}</a>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
+
+export default Pricing

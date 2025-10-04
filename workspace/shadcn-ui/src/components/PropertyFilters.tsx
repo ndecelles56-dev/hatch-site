@@ -59,6 +59,31 @@ interface PropertyFiltersProps {
   totalCount: number
 }
 
+export const PROPERTY_FILTER_LIMITS = {
+  priceMax: 100_000_000,
+  sqftMax: 100_000,
+  lotSizeMax: 5_000_000,
+} as const
+
+export const createDefaultPropertyFilters = (): PropertyFilters => ({
+  search: '',
+  priceRange: [0, PROPERTY_FILTER_LIMITS.priceMax],
+  propertyTypes: [],
+  bedrooms: 'Any',
+  bathrooms: 'Any',
+  sqftRange: [0, PROPERTY_FILTER_LIMITS.sqftMax],
+  yearBuiltRange: [1900, new Date().getFullYear()],
+  status: [],
+  agents: [],
+  cities: [],
+  daysOnMarket: [0, 365],
+  listingDateRange: { from: '', to: '' },
+  mlsNumber: '',
+  lotSizeRange: [0, PROPERTY_FILTER_LIMITS.lotSizeMax],
+  sortBy: 'listingDate',
+  sortOrder: 'desc'
+})
+
 const PROPERTY_TYPES = [
   'House',
   'Condo',
@@ -109,39 +134,22 @@ export function PropertyFiltersComponent({
   }
 
   const clearAllFilters = () => {
-    const defaultFilters: PropertyFilters = {
-      search: '',
-      priceRange: [0, 10000000],
-      propertyTypes: [],
-      bedrooms: 'Any',
-      bathrooms: 'Any',
-      sqftRange: [0, 10000],
-      yearBuiltRange: [1900, new Date().getFullYear()],
-      status: [],
-      agents: [],
-      cities: [],
-      daysOnMarket: [0, 365],
-      listingDateRange: { from: '', to: '' },
-      mlsNumber: '',
-      lotSizeRange: [0, 100],
-      sortBy: 'listingDate',
-      sortOrder: 'desc'
-    }
-    onFiltersChange(defaultFilters)
+    onFiltersChange(createDefaultPropertyFilters())
   }
 
   const getActiveFilterCount = () => {
     let count = 0
     if (filters.search) count++
-    if (filters.priceRange[0] > 0 || filters.priceRange[1] < 10000000) count++
+    if (filters.priceRange[0] > 0 || filters.priceRange[1] < PROPERTY_FILTER_LIMITS.priceMax) count++
     if (filters.propertyTypes.length > 0) count++
     if (filters.bedrooms !== 'Any') count++
     if (filters.bathrooms !== 'Any') count++
-    if (filters.sqftRange[0] > 0 || filters.sqftRange[1] < 10000) count++
+    if (filters.sqftRange[0] > 0 || filters.sqftRange[1] < PROPERTY_FILTER_LIMITS.sqftMax) count++
     if (filters.status.length > 0) count++
     if (filters.agents.length > 0) count++
     if (filters.cities.length > 0) count++
     if (filters.mlsNumber) count++
+    if (filters.lotSizeRange[0] > 0 || filters.lotSizeRange[1] < PROPERTY_FILTER_LIMITS.lotSizeMax) count++
     return count
   }
 
@@ -221,7 +229,7 @@ export function PropertyFiltersComponent({
             <Slider
               value={filters.priceRange}
               onValueChange={(value) => updateFilters({ priceRange: value as [number, number] })}
-              max={10000000}
+              max={PROPERTY_FILTER_LIMITS.priceMax}
               min={0}
               step={50000}
               className="w-full"
@@ -383,7 +391,7 @@ export function PropertyFiltersComponent({
                 <Slider
                   value={filters.sqftRange}
                   onValueChange={(value) => updateFilters({ sqftRange: value as [number, number] })}
-                  max={10000}
+                  max={PROPERTY_FILTER_LIMITS.sqftMax}
                   min={0}
                   step={100}
                   className="w-full"
@@ -391,6 +399,25 @@ export function PropertyFiltersComponent({
                 <div className="flex justify-between text-sm text-gray-600 mt-2">
                   <span>{filters.sqftRange[0].toLocaleString()} sq ft</span>
                   <span>{filters.sqftRange[1].toLocaleString()} sq ft</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Lot Size */}
+            <div className="space-y-3">
+              <Label>Lot Size (sq ft)</Label>
+              <div className="px-3">
+                <Slider
+                  value={filters.lotSizeRange}
+                  onValueChange={(value) => updateFilters({ lotSizeRange: value as [number, number] })}
+                  max={PROPERTY_FILTER_LIMITS.lotSizeMax}
+                  min={0}
+                  step={1000}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-sm text-gray-600 mt-2">
+                  <span>{filters.lotSizeRange[0].toLocaleString()} sq ft</span>
+                  <span>{filters.lotSizeRange[1].toLocaleString()} sq ft</span>
                 </div>
               </div>
             </div>

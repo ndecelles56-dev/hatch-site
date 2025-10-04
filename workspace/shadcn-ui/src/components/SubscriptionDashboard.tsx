@@ -3,12 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { 
-  CreditCard, 
-  Calendar, 
-  Users, 
-  TrendingUp, 
-  AlertCircle, 
+import {
+  CreditCard,
+  Calendar,
+  Users,
+  TrendingUp,
+  AlertCircle,
   CheckCircle,
   ExternalLink,
   Download
@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { PRICING_PLANS } from '@/types/subscription'
 import type { Firm, SubscriptionResponse } from '@/types/subscription'
+import { toast } from '@/components/ui/use-toast'
 
 export function SubscriptionDashboard() {
   const { user } = useAuth()
@@ -91,7 +92,10 @@ export function SubscriptionDashboard() {
 
   const handleManageBilling = () => {
     // In a real app, this would redirect to Stripe Customer Portal
-    alert('Redirecting to billing portal...')
+    toast({
+      title: 'Billing portal',
+      description: 'Redirecting you to manage payment details.',
+    })
   }
 
   if (loading) {

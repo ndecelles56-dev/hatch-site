@@ -28,6 +28,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react'
+import { MIN_PROPERTY_PHOTOS, MAX_PROPERTY_PHOTOS } from '@/constants/photoRequirements'
 
 export interface DraftListing {
   id: string
@@ -130,7 +131,7 @@ export default function DraftListings({
     const hasRequiredFields = requiredFields.every(field => 
       draft.mappedData[field] && draft.mappedData[field] !== ''
     )
-    const hasMinimumPhotos = draft.photos.length >= 4
+    const hasMinimumPhotos = draft.photos.length >= MIN_PROPERTY_PHOTOS
     const hasNoErrors = draft.validationErrors.length === 0
 
     return hasRequiredFields && hasMinimumPhotos && hasNoErrors
@@ -219,8 +220,8 @@ export default function DraftListings({
                 </div>
                 <div className="flex items-center space-x-2">
                   <Image className="w-4 h-4 text-gray-400" />
-                  <span>{draft.photos.length}/4 photos</span>
-                  {draft.photos.length >= 4 ? (
+                  <span>{draft.photos.length}/{MIN_PROPERTY_PHOTOS} photos</span>
+                  {draft.photos.length >= MIN_PROPERTY_PHOTOS ? (
                     <CheckCircle className="w-4 h-4 text-green-500" />
                   ) : (
                     <AlertCircle className="w-4 h-4 text-red-500" />
@@ -512,10 +513,10 @@ export default function DraftListings({
                 <div className="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg">
                   <Image className="w-12 h-12 mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-600 mb-2">
-                    {selectedDraft.photos.length}/4 photos uploaded
+                    {selectedDraft.photos.length}/{MAX_PROPERTY_PHOTOS} photos uploaded
                   </p>
                   <p className="text-sm text-gray-500 mb-4">
-                    Minimum 4 photos required to publish listing
+                    Minimum {MIN_PROPERTY_PHOTOS} photos required to publish listing
                   </p>
                   <Button variant="outline">
                     <Upload className="w-4 h-4 mr-2" />

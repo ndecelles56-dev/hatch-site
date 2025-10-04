@@ -1,5 +1,5 @@
 import React from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MLSProperty } from '@/types/MLSProperty'
@@ -66,6 +66,9 @@ function PropertyPreview({ property, isOpen, onClose }: PropertyPreviewProps) {
           <DialogTitle className="text-2xl font-bold text-gray-900">
             Property Preview
           </DialogTitle>
+          <DialogDescription>
+            Review the listing details before sharing with clients or publishing to the MLS.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -190,10 +193,22 @@ function PropertyPreview({ property, isOpen, onClose }: PropertyPreviewProps) {
                     <span className="font-medium">{property.garageSpaces}</span>
                   </div>
                 )}
+                {property.garageType && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Garage Type:</span>
+                    <span className="font-medium">{property.garageType}</span>
+                  </div>
+                )}
                 {property.lotSize && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Lot Size:</span>
                     <span className="font-medium">{property.lotSize.toLocaleString()} sq ft</span>
+                  </div>
+                )}
+                {property.lotSizeAcres && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Lot Size (Acres):</span>
+                    <span className="font-medium">{property.lotSizeAcres.toLocaleString()}</span>
                   </div>
                 )}
                 {property.county && (
@@ -206,6 +221,24 @@ function PropertyPreview({ property, isOpen, onClose }: PropertyPreviewProps) {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subdivision:</span>
                     <span className="font-medium">{property.subdivision}</span>
+                  </div>
+                )}
+                {property.architecturalStyle && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Architectural Style:</span>
+                    <span className="font-medium">{property.architecturalStyle}</span>
+                  </div>
+                )}
+                {property.latitude !== undefined && property.latitude !== null && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Latitude:</span>
+                    <span className="font-medium">{property.latitude.toFixed(6)}</span>
+                  </div>
+                )}
+                {property.longitude !== undefined && property.longitude !== null && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Longitude:</span>
+                    <span className="font-medium">{property.longitude.toFixed(6)}</span>
                   </div>
                 )}
               </div>

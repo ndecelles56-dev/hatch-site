@@ -1,224 +1,196 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useCustomerExperience } from '@/contexts/CustomerExperienceContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Home, 
-  Heart, 
-  MessageSquare, 
-  Search,
-  MapPin,
-  Calendar,
-  Bell,
-  User
-} from 'lucide-react'
+import { Home, Heart, MessageSquare, Search, MapPin, Calendar, Bell, User } from 'lucide-react'
 
-export default function CustomerDashboard() {
-  const recentSearches = [
-    { location: 'Miami Beach, FL', type: 'Condo', priceRange: '$300K - $500K' },
-    { location: 'Coral Gables, FL', type: 'House', priceRange: '$600K - $800K' },
-    { location: 'Aventura, FL', type: 'Townhouse', priceRange: '$400K - $600K' }
-  ]
+const CustomerDashboard: React.FC = () => {
+  const navigate = useNavigate()
+  const { favorites, savedSearches, recentlyViewed, leadRequests } = useCustomerExperience()
 
-  const savedProperties = [
-    { id: 1, address: '123 Ocean Drive', price: '$450,000', type: 'Condo', bedrooms: 2, bathrooms: 2 },
-    { id: 2, address: '456 Coral Way', price: '$750,000', type: 'House', bedrooms: 3, bathrooms: 3 },
-    { id: 3, address: '789 Biscayne Blvd', price: '$520,000', type: 'Townhouse', bedrooms: 2, bathrooms: 2.5 }
-  ]
+  const topSavedSearches = useMemo(() => savedSearches.slice(0, 3), [savedSearches])
+  const topFavorites = useMemo(() => favorites.slice(0, 3), [favorites])
+  const latestInquiries = useMemo(() => leadRequests.slice(0, 3), [leadRequests])
 
-  const recentInquiries = [
-    { property: '123 Ocean Drive', agent: 'Sarah Johnson', status: 'Pending', date: '2024-01-15' },
-    { property: '456 Coral Way', agent: 'Mike Rodriguez', status: 'Responded', date: '2024-01-14' },
-    { property: '789 Biscayne Blvd', agent: 'Lisa Chen', status: 'Scheduled', date: '2024-01-13' }
-  ]
+  const upcomingTour = leadRequests.find((request) => request.channel === 'schedule' && request.preferredDate)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back!</h1>
-          <p className="text-gray-600">Track your property searches, favorites, and inquiries</p>
+    <div className="min-h-screen bg-slate-50 pb-16">
+      <div className="mx-auto max-w-6xl px-4 py-10 space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Welcome back</h1>
+          <p className="text-slate-600">Review your favorite homes, saved searches, and tour activity at a glance.</p>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+          <Card className="cursor-pointer border border-slate-200 transition hover:shadow-lg" onClick={() => navigate('/customer/search')}>
             <CardContent className="p-6 text-center">
-              <Search className="h-8 w-8 text-blue-500 mx-auto mb-3" />
-              <h3 className="font-semibold mb-1">Search Properties</h3>
-              <p className="text-sm text-gray-600">Find your dream home</p>
+              <Search className="mx-auto mb-3 h-8 w-8 text-indigo-500" />
+              <h3 className="font-semibold text-slate-900">Search properties</h3>
+              <p className="text-sm text-slate-600">Discover the latest listings</p>
             </CardContent>
           </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="cursor-pointer border border-slate-200 transition hover:shadow-lg" onClick={() => navigate('/customer/favorites')}>
             <CardContent className="p-6 text-center">
-              <Heart className="h-8 w-8 text-red-500 mx-auto mb-3" />
-              <h3 className="font-semibold mb-1">Saved Properties</h3>
-              <p className="text-sm text-gray-600">{savedProperties.length} properties saved</p>
+              <Heart className="mx-auto mb-3 h-8 w-8 text-rose-500" />
+              <h3 className="font-semibold text-slate-900">Saved homes</h3>
+              <p className="text-sm text-slate-600">{favorites.length} {favorites.length === 1 ? 'home' : 'homes'} favorited</p>
             </CardContent>
           </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="cursor-pointer border border-slate-200 transition hover:shadow-lg" onClick={() => navigate('/customer/saved')}>
             <CardContent className="p-6 text-center">
-              <MessageSquare className="h-8 w-8 text-green-500 mx-auto mb-3" />
-              <h3 className="font-semibold mb-1">Inquiries</h3>
-              <p className="text-sm text-gray-600">{recentInquiries.length} active inquiries</p>
+              <MapPin className="mx-auto mb-3 h-8 w-8 text-emerald-500" />
+              <h3 className="font-semibold text-slate-900">Saved searches</h3>
+              <p className="text-sm text-slate-600">{savedSearches.length} personalized alerts</p>
             </CardContent>
           </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="cursor-pointer border border-slate-200 transition hover:shadow-lg" onClick={() => navigate('/customer/profile')}>
             <CardContent className="p-6 text-center">
-              <User className="h-8 w-8 text-purple-500 mx-auto mb-3" />
-              <h3 className="font-semibold mb-1">Profile</h3>
-              <p className="text-sm text-gray-600">Manage your account</p>
+              <User className="mx-auto mb-3 h-8 w-8 text-purple-500" />
+              <h3 className="font-semibold text-slate-900">Profile</h3>
+              <p className="text-sm text-slate-600">Manage account & alerts</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Recent Searches */}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Search className="h-5 w-5 mr-2" />
-                Recent Searches
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" /> Recent searches
               </CardTitle>
-              <CardDescription>Your latest property searches</CardDescription>
+              <CardDescription>Your latest saved filters</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recentSearches.map((search, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="flex items-center mb-1">
-                        <MapPin className="h-4 w-4 text-gray-400 mr-1" />
-                        <span className="font-medium">{search.location}</span>
+              {topSavedSearches.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-600">
+                  Create a saved search to receive instant alerts when new listings match your criteria.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {topSavedSearches.map((search) => (
+                    <div key={search.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-indigo-500" />
+                          <span className="font-semibold text-slate-900">{search.name}</span>
+                        </div>
+                        <p className="text-sm text-slate-600">
+                          {search.query || 'Any location'} • {search.sort.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                        </p>
                       </div>
-                      <div className="text-sm text-gray-600">
-                        {search.type} • {search.priceRange}
-                      </div>
+                      <Button size="sm" variant="outline" onClick={() => navigate({ pathname: '/customer/search', search: `?savedSearch=${search.id}` })}>
+                        View
+                      </Button>
                     </div>
-                    <Button size="sm" variant="outline">
-                      Search Again
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Saved Properties */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Heart className="h-5 w-5 mr-2" />
-                Saved Properties
+              <CardTitle className="flex items-center gap-2">
+                <Heart className="h-5 w-5" /> Saved homes
               </CardTitle>
-              <CardDescription>Properties you've favorited</CardDescription>
+              <CardDescription>Properties you are tracking</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {savedProperties.map((property) => (
-                  <div key={property.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium mb-1">{property.address}</div>
-                      <div className="text-sm text-gray-600">
-                        {property.type} • {property.bedrooms}bd {property.bathrooms}ba
+              {topFavorites.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-600">
+                  Tap the heart on any listing to save it here for easy access.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {topFavorites.map((favorite) => (
+                    <div key={favorite.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4">
+                      <div>
+                        <p className="font-semibold text-slate-900">{favorite.address}</p>
+                        <p className="text-sm text-slate-600">
+                          {favorite.propertyType || 'Home'} • {favorite.bedrooms ?? '—'} bd {favorite.bathrooms ?? '—'} ba
+                        </p>
                       </div>
-                      <div className="text-lg font-bold text-green-600">{property.price}</div>
+                      <div className="text-right">
+                        <p className="text-lg font-semibold text-emerald-600">{favorite.price ? favorite.price.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }) : 'Contact for pricing'}</p>
+                        <Button size="sm" variant="outline" onClick={() => navigate(`/customer/property/${favorite.slug ?? favorite.id}`)}>
+                          View
+                        </Button>
+                      </div>
                     </div>
-                    <Button size="sm" variant="outline">
-                      View Details
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <Button className="w-full mt-4" variant="outline">
-                View All Saved Properties
-              </Button>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Recent Inquiries */}
-        <Card className="mt-8">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <MessageSquare className="h-5 w-5 mr-2" />
-              Recent Inquiries
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" /> Recent inquiries
             </CardTitle>
-            <CardDescription>Track your property inquiries and agent responses</CardDescription>
+            <CardDescription>Follow up with agents directly.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentInquiries.map((inquiry, index) => (
-                <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Home className="h-4 w-4 text-gray-400" />
-                      <span className="font-medium">{inquiry.property}</span>
-                      <Badge 
-                        variant={inquiry.status === 'Responded' ? 'default' : inquiry.status === 'Scheduled' ? 'secondary' : 'outline'}
-                      >
-                        {inquiry.status}
-                      </Badge>
+            {latestInquiries.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-600">
+                Request a tour from a property page to start a conversation with the listing agent.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {latestInquiries.map((inquiry) => (
+                  <div key={inquiry.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Home className="h-4 w-4 text-indigo-500" />
+                        <span className="font-semibold text-slate-900">{inquiry.propertyAddress}</span>
+                        <Badge variant={inquiry.channel === 'schedule' ? 'default' : 'secondary'}>
+                          {inquiry.channel === 'schedule' ? 'Tour request' : 'Message'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-600">Sent {new Date(inquiry.createdAt).toLocaleDateString()}</p>
                     </div>
-                    <div className="text-sm text-gray-600">
-                      Agent: {inquiry.agent} • {inquiry.date}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline">
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      Message
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      Schedule
+                    <Button size="sm" variant="outline" onClick={() => navigate('/customer/inquiries')}>
+                      Open
                     </Button>
                   </div>
-                </div>
-              ))}
-            </div>
-            <Button className="w-full mt-4" variant="outline">
-              View All Inquiries
-            </Button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Notifications */}
-        <Card className="mt-8">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Bell className="h-5 w-5 mr-2" />
-              Notifications
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" /> Notifications
             </CardTitle>
-            <CardDescription>Stay updated on your property interests</CardDescription>
+            <CardDescription>Important updates at a glance.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <Bell className="h-4 w-4 text-blue-500 mr-3" />
-                <div className="flex-1">
-                  <div className="font-medium">New property match found!</div>
-                  <div className="text-sm text-gray-600">3 new properties match your Miami Beach search criteria</div>
-                </div>
-                <Button size="sm">View</Button>
+          <CardContent className="space-y-3">
+            {upcomingTour ? (
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                <Calendar className="h-4 w-4" /> Tour requested for {upcomingTour.propertyAddress} on{' '}
+                {upcomingTour.preferredDate} {upcomingTour.preferredTime ? `at ${upcomingTour.preferredTime}` : ''}
               </div>
-              
-              <div className="flex items-center p-3 bg-green-50 border border-green-200 rounded-lg">
-                <MessageSquare className="h-4 w-4 text-green-500 mr-3" />
-                <div className="flex-1">
-                  <div className="font-medium">Agent responded to your inquiry</div>
-                  <div className="text-sm text-gray-600">Sarah Johnson replied about 123 Ocean Drive</div>
-                </div>
-                <Button size="sm">Reply</Button>
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-600">
+                No upcoming tours scheduled yet. Request a showing to see personalized reminders here.
               </div>
-            </div>
+            )}
+            {recentlyViewed.length > 0 && (
+              <div className="flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700">
+                <MapPin className="h-4 w-4" /> You viewed {recentlyViewed[0].address}. Ready to take the next step?
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
   )
 }
+
+export default CustomerDashboard

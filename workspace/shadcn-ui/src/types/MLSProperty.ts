@@ -4,6 +4,7 @@ export interface MLSProperty {
   id: string
   mlsNumber?: string
   status: 'draft' | 'active' | 'pending' | 'sold' | 'expired'
+  workflowState?: 'PROPERTY_PENDING' | 'LIVE' | 'SOLD'
   
   // Basic property information
   listPrice: number
@@ -20,6 +21,7 @@ export interface MLSProperty {
   bathroomsHalf?: number // Half bathrooms
   bathroomsPartial?: number // Partial bathrooms
   bathroomsTotal?: number // Total bathrooms
+  bathroomsThreeQuarter?: number
   
   // Structure details
   stories?: number
@@ -34,6 +36,8 @@ export interface MLSProperty {
   county: string
   subdivision?: string
   parcelID?: string // Added Parcel ID
+  latitude?: number
+  longitude?: number
   
   // Lot and land
   lotSize: number
@@ -41,6 +45,7 @@ export interface MLSProperty {
   
   // Parking and garage
   garageSpaces?: number
+  garageType?: string
   
   // Enhanced feature fields
   flooring?: string
@@ -49,6 +54,8 @@ export interface MLSProperty {
   kitchenFeatures?: string
   primarySuite?: string
   laundryFeatures?: string
+  interiorFeatures?: string
+  appliances?: string
   constructionMaterials?: string
   roofType?: string
   foundationDetails?: string
@@ -81,16 +88,24 @@ export interface MLSProperty {
   
   // Media and marketing
   photos?: string[]
+  coverPhotoUrl?: string
   publicRemarks?: string
   brokerRemarks?: string
   virtualTourUrl?: string
   videoUrl?: string
+  listingDate?: string
+  viewCount?: number
+  leadCount?: number
+  favoriteCount?: number
   
   // System fields
   createdAt: string
   lastModified: string
   completionPercentage: number
   validationErrors?: ValidationError[]
+  publishedAt?: string | null
+  closedAt?: string | null
+  isFeatured?: boolean
 }
 
 export interface ValidationError {

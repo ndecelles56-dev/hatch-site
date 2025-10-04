@@ -1,11 +1,13 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useNavigate } from 'react-router-dom'
+import { Navbar } from '@/components/layout/Navbar'
+import { useAuth } from '@/contexts/AuthContext'
+import { resolveUserIdentity } from '@/lib/utils'
 import { 
   Search, 
-  Home as HomeIcon,
   Building2,
   Users,
   TrendingUp,
@@ -17,12 +19,54 @@ import {
   DollarSign,
   BarChart3,
   Upload,
-  LogIn,
-  UserPlus
+  UserPlus,
+  Home as HomeIcon
 } from 'lucide-react'
 
 export default function Home() {
   const navigate = useNavigate()
+  const { user, isBroker, session } = useAuth()
+  const identity = useMemo(
+    () => resolveUserIdentity(session?.profile, user?.email ?? null),
+    [session?.profile, user?.email]
+  )
+  const isAuthenticated = Boolean(user)
+  const dashboardPath = isBroker ? '/broker/dashboard' : '/customer/dashboard'
+  const dashboardLabel = isBroker ? 'Broker Dashboard' : 'My Dashboard'
+  const showPersonalGreeting = isAuthenticated && identity.displayName !== 'Your Account'
+  const heroGreeting = isAuthenticated
+    ? showPersonalGreeting
+      ? `Welcome back, ${identity.displayName}!`
+      : 'Welcome back!'
+    : null
+
+  const handleAccountNavigation = () => {
+    if (isAuthenticated) {
+      navigate(dashboardPath)
+      return
+    }
+    navigate('/register')
+  }
+
+  const handleBrokerNavigation = () => {
+    if (isBroker) {
+      navigate('/broker/dashboard')
+      return
+    }
+    navigate('/broker/pricing')
+  }
+
+  const handleBrokerLoginLink = () => {
+    if (isBroker) {
+      navigate('/broker/dashboard')
+      return
+    }
+    if (isAuthenticated) {
+      navigate('/broker/pricing')
+      return
+    }
+    navigate('/login')
+  }
 
   const features = [
     {
@@ -103,39 +147,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div className="flex items-center">
-              <HomeIcon className="h-8 w-8 text-blue-600 mr-2" />
-              <span className="text-xl font-bold text-gray-900">Hatch</span>
-            </div>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-6">
-              <Button variant="ghost" onClick={() => navigate('/')}>
-                Home
-              </Button>
-              <Button variant="ghost" onClick={() => navigate('/properties')}>
-                Properties
-              </Button>
-              <Button variant="ghost" onClick={() => navigate('/login')}>
-                <LogIn className="w-4 h-4 mr-2" />
-                Login
-              </Button>
-              <Button variant="ghost" onClick={() => navigate('/register')}>
-                <UserPlus className="w-4 h-4 mr-2" />
-                Register
-              </Button>
-              <Button onClick={() => navigate('/broker/pricing')}>
-                Broker Portal
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
@@ -145,6 +157,11 @@ export default function Home() {
               Discover Your Perfect Property with 
               <span className="text-blue-600"> Hatch</span>
             </h1>
+            {heroGreeting && (
+              <p className="text-lg text-blue-700 font-semibold mb-3">
+                {heroGreeting}
+              </p>
+            )}
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
               The most advanced real estate platform connecting buyers, sellers, and professionals. 
               Find your dream home or grow your real estate business with powerful tools and insights.
@@ -161,11 +178,11 @@ export default function Home() {
               <Button 
                 size="lg" 
                 variant="outline"
-                onClick={() => navigate('/broker/pricing')}
+                onClick={handleBrokerNavigation}
                 className="text-lg px-8 py-3"
               >
                 <Building2 className="w-5 h-5 mr-2" />
-                For Brokers
+                {isBroker ? 'View Broker Dashboard' : 'For Brokers'}
               </Button>
             </div>
           </div>
@@ -239,11 +256,11 @@ export default function Home() {
               <div className="mt-8">
                 <Button 
                   size="lg"
-                  onClick={() => navigate('/broker/pricing')}
+                  onClick={handleBrokerNavigation}
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <DollarSign className="w-5 h-5 mr-2" />
-                  View Pricing Plans
+                  {isBroker ? 'Open Broker Dashboard' : 'View Pricing Plans'}
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </div>
@@ -331,14 +348,25 @@ export default function Home() {
               <Search className="w-5 h-5 mr-2" />
               Start Searching
             </Button>
-            <Button 
-              size="lg" 
-              onClick={() => navigate('/register')}
-              className="text-lg px-8 py-3 bg-white text-blue-600 border-white hover:bg-blue-50 hover:text-blue-700"
-            >
-              <UserPlus className="w-5 h-5 mr-2" />
-              Create Account
-            </Button>
+            {isAuthenticated ? (
+              <Button 
+                size="lg" 
+                onClick={handleAccountNavigation}
+                className="text-lg px-8 py-3 bg-white text-blue-600 border-white hover:bg-blue-50 hover:text-blue-700"
+              >
+                <ArrowRight className="w-5 h-5 mr-2" />
+                Go to {dashboardLabel}
+              </Button>
+            ) : (
+              <Button 
+                size="lg" 
+                onClick={handleAccountNavigation}
+                className="text-lg px-8 py-3 bg-white text-blue-600 border-white hover:bg-blue-50 hover:text-blue-700"
+              >
+                <UserPlus className="w-5 h-5 mr-2" />
+                Create Account
+              </Button>
+            )}
           </div>
         </div>
       </section>
@@ -360,7 +388,15 @@ export default function Home() {
               <h4 className="font-semibold mb-4">For Buyers</h4>
               <ul className="space-y-2 text-gray-400">
                 <li><Button variant="link" className="text-gray-400 p-0 h-auto" onClick={() => navigate('/properties')}>Search Properties</Button></li>
-                <li><Button variant="link" className="text-gray-400 p-0 h-auto" onClick={() => navigate('/register')}>Create Account</Button></li>
+                <li>
+                  <Button
+                    variant="link"
+                    className="text-gray-400 p-0 h-auto"
+                    onClick={handleAccountNavigation}
+                  >
+                    {isAuthenticated ? `Go to ${dashboardLabel}` : 'Create Account'}
+                  </Button>
+                </li>
                 <li><Button variant="link" className="text-gray-400 p-0 h-auto">Mortgage Calculator</Button></li>
                 <li><Button variant="link" className="text-gray-400 p-0 h-auto">Neighborhood Guide</Button></li>
               </ul>
@@ -368,8 +404,24 @@ export default function Home() {
             <div>
               <h4 className="font-semibold mb-4">For Professionals</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><Button variant="link" className="text-gray-400 p-0 h-auto" onClick={() => navigate('/broker/pricing')}>Pricing Plans</Button></li>
-                <li><Button variant="link" className="text-gray-400 p-0 h-auto" onClick={() => navigate('/login')}>Broker Login</Button></li>
+                <li>
+                  <Button
+                    variant="link"
+                    className="text-gray-400 p-0 h-auto"
+                    onClick={handleBrokerNavigation}
+                  >
+                    {isBroker ? 'Broker Dashboard' : 'Pricing Plans'}
+                  </Button>
+                </li>
+                <li>
+                  <Button
+                    variant="link"
+                    className="text-gray-400 p-0 h-auto"
+                    onClick={handleBrokerLoginLink}
+                  >
+                    {isBroker ? 'Manage Team' : 'Broker Login'}
+                  </Button>
+                </li>
                 <li><Button variant="link" className="text-gray-400 p-0 h-auto">API Documentation</Button></li>
                 <li><Button variant="link" className="text-gray-400 p-0 h-auto">Support Center</Button></li>
               </ul>

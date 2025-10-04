@@ -1,16 +1,16 @@
 import React, { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  Upload, 
-  FileText, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Upload,
+  FileText,
+  CheckCircle,
+  AlertCircle,
   X,
   Download,
   Eye,
@@ -20,13 +20,29 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import FuzzyFieldMapper from '@/components/upload/FuzzyFieldMapper'
+import type { FieldMapping as ChildFieldMapping, ValidationResult as ChildValidationResult } from '@/components/upload/FuzzyFieldMapper'
 import { 
   mapCSVHeaders, 
   validateMLSData, 
-  MLS_FIELD_DEFINITIONS,
-  type FieldMapping, 
-  type ValidationResult 
+  MLS_FIELD_DEFINITIONS
 } from '@/utils/fuzzyFieldMatcher'
+import { toast } from '@/components/ui/use-toast'
+
+// Local structural types used by this component
+export type FieldMapping = {
+  inputField: string
+  mlsField: { standardName?: string } | Record<string, any>
+  confidence: number
+  isRequired?: boolean
+}
+
+export type ValidationIssue = { field: string; message: string; severity: 'error' | 'warning' }
+export type ValidationResult = {
+  isValid: boolean
+  completionPercentage: number
+  errors: ValidationIssue[]
+  warnings: ValidationIssue[]
+}
 
 interface DraftListing {
   id: string
@@ -85,6 +101,12 @@ export default function BulkUpload({
   })
   const [currentStep, setCurrentStep] = useState<'upload' | 'parse' | 'mapping' | 'processing' | 'complete'>('upload')
   const [needsAdvancedMapping, setNeedsAdvancedMapping] = useState(false)
+  const [mappingReport, setMappingReport] = useState<{ 
+    mapped: number;
+    unmapped: string[];
+    missingRequired: string[];
+    samples: { input: string; standard: string; confidence: number }[];
+  }>({ mapped: 0, unmapped: [], missingRequired: [], samples: [] })
 
   // Parse uploaded files to extract headers and sample data
   const parseUploadedFiles = async (files: File[]): Promise<ParsedFile[]> => {
@@ -106,7 +128,11 @@ export default function BulkUpload({
           const csvHeaders = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
           
           // Check if this is Field-Value format
-          if (csvHeaders.length === 2 && csvHeaders[0].toLowerCase() === 'field' && csvHeaders[1].toLowerCase() === 'value') {
+          if (
+            csvHeaders.length === 2 &&
+            (csvHeaders?.[0] ?? '').toString().toLowerCase() === 'field' &&
+            (csvHeaders?.[1] ?? '').toString().toLowerCase() === 'value'
+          ) {
             // Field-Value format - convert to standard format
             const propertyData: Record<string, unknown> = {}
             const extractedHeaders: string[] = []
@@ -194,7 +220,11 @@ export default function BulkUpload({
     if (acceptedFiles.length === 0) return
     
     if (acceptedFiles.length > maxFiles) {
-      alert(`Maximum ${maxFiles} files allowed. Only the first ${maxFiles} files will be processed.`)
+      toast({
+        title: 'File limit reached',
+        description: `Only the first ${maxFiles} files will be processed.`,
+        variant: 'destructive',
+      })
       setUploadedFiles(acceptedFiles.slice(0, maxFiles))
     } else {
       setUploadedFiles(acceptedFiles)
@@ -210,8 +240,10 @@ export default function BulkUpload({
       
       console.log('🔍 Enhanced Field Mapping System Status:')
       console.log(`📊 Total MLS Field Definitions: ${MLS_FIELD_DEFINITIONS.length}`)
-      console.log('📋 Available Fields:', MLS_FIELD_DEFINITIONS.map(f => f.standardName))
-      console.log('🎯 Required Fields:', MLS_FIELD_DEFINITIONS.filter(f => f.required).map(f => f.standardName))
+      console.log('📋 Available Fields:', (MLS_FIELD_DEFINITIONS as any[]).map((f: any) => f?.standardName ?? f?.name ?? f?.key ?? f?.id ?? ''))
+      console.log('🎯 Required Fields:', (MLS_FIELD_DEFINITIONS as any[])
+        .filter((f: any) => !!f?.required)
+        .map((f: any) => f?.standardName ?? f?.name ?? f?.key ?? f?.id ?? ''))
       
       const parsed = await parseUploadedFiles(uploadedFiles)
       setParsedFiles(parsed)
@@ -226,57 +258,96 @@ export default function BulkUpload({
       // Auto-map fields using the enhanced fuzzy system
       const combinedHeaders = Array.from(allHeaders)
       console.log('🔄 Processing headers for mapping:', combinedHeaders)
-      
-      const mappingResult = mapCSVHeaders(combinedHeaders, 0.7)
-      
-      console.log('🎯 Mapping Results:')
-      console.log(`✅ Mapped: ${mappingResult.mappings.length} fields`)
-      console.log(`❌ Unmapped: ${mappingResult.unmapped.length} fields`)
-      console.log(`⚠️ Missing Required: ${mappingResult.missingRequired.length} fields`)
-      
-      mappingResult.mappings.forEach(mapping => {
-        console.log(`  ${mapping.inputField} → ${mapping.mlsField.standardName} (${Math.round(mapping.confidence * 100)}% confidence)`)
+
+      const mappingResult: any = mapCSVHeaders(combinedHeaders)
+      const mappedArr: FieldMapping[] = Array.isArray(mappingResult?.mappings) ? mappingResult.mappings : []
+      const unmappedArr: string[] = Array.isArray(mappingResult?.unmapped) ? mappingResult.unmapped : []
+      const missingReqArr: any[] = Array.isArray(mappingResult?.missingRequired) ? mappingResult.missingRequired : []
+
+      // If nothing mapped at all, force manual mapping UI
+      if (!Array.isArray(mappingResult?.mappings) || mappingResult.mappings.length === 0) {
+        setMappingReport({ mapped: 0, unmapped: Array.isArray(mappingResult?.unmapped) ? mappingResult.unmapped : combinedHeaders, missingRequired: [], samples: [] })
+        setNeedsAdvancedMapping(true)
+        setCurrentStep('mapping')
+      }
+
+      // Populate mapping report state (with safe fallbacks)
+      setMappingReport({
+        mapped: mappedArr.length,
+        unmapped: unmappedArr.length
+          ? unmappedArr
+          : Array.from(allHeaders).filter(h => !mappedArr.some((m: any) => m.inputField === h)),
+        missingRequired: missingReqArr.map((f: any) => f?.standardName ?? f?.name ?? f?.key ?? f?.id ?? ''),
+        samples: mappedArr.slice(0, 20).map((m: any) => ({
+          input: m.inputField,
+          standard: m?.mlsField?.standardName ?? '',
+          confidence: typeof m.confidence === 'number' ? m.confidence : 0
+        }))
       })
-      
-      if (mappingResult.unmapped.length > 0) {
-        console.log('❌ Unmapped fields:', mappingResult.unmapped)
+
+      console.log('🎯 Mapping Results:')
+      console.log(`✅ Mapped: ${mappedArr.length} fields`)
+      console.log(`❌ Unmapped: ${unmappedArr.length} fields`)
+      console.log(`⚠️ Missing Required: ${missingReqArr.length} fields`)
+
+      mappedArr.forEach((mapping: any) => {
+        console.log(`  ${mapping.inputField} → ${mapping?.mlsField?.standardName ?? ''} (${Math.round((mapping.confidence ?? 0) * 100)}% confidence)`)
+      })
+
+      if (unmappedArr.length > 0) {
+        console.log('❌ Unmapped fields:', unmappedArr)
       }
-      
-      if (mappingResult.missingRequired.length > 0) {
-        console.log('⚠️ Missing required fields:', mappingResult.missingRequired.map(f => f.standardName))
+
+      if (missingReqArr.length > 0) {
+        console.log('⚠️ Missing required fields:', missingReqArr.map((f: any) => f?.standardName ?? f?.name ?? f?.key ?? f?.id ?? ''))
       }
-      
+
       // Check if we need advanced mapping (missing required fields or low confidence)
-      const needsManualReview = mappingResult.missingRequired.length > 0 || 
-                               mappingResult.mappings.some(m => m.confidence < 0.8)
-      
+      const needsManualReview = missingReqArr.length > 0 || mappedArr.some((m: any) => (m?.confidence ?? 0) < 0.8)
+
       console.log(`🤔 Needs manual review: ${needsManualReview}`)
-      
+
       if (needsManualReview) {
         setNeedsAdvancedMapping(true)
         setCurrentStep('mapping')
       } else {
         // Auto-proceed with good mappings
-        setFieldMappings(mappingResult.mappings)
+        setFieldMappings(mappedArr)
         setCurrentStep('processing')
-        processWithMappings(mappingResult.mappings)
+        processWithMappings(mappedArr)
       }
       
     } catch (error) {
       console.error('Error parsing files:', error)
-      alert(`Error parsing files: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast({
+        title: 'Error parsing files',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      })
     } finally {
       setIsProcessing(false)
     }
   }
 
   // Handle mapping completion from the advanced mapper
-  const handleMappingComplete = (mappings: FieldMapping[], validation: ValidationResult) => {
+  const handleMappingComplete = (mappings: ChildFieldMapping[], validation: ChildValidationResult) => {
     console.log('✅ Advanced mapping completed:', mappings.length, 'mappings')
-    setFieldMappings(mappings)
-    setValidationResult(validation)
+
+    // Normalize child mappings (which may be { input, output, confidence, isRequired }) into local shape
+    const normalized: FieldMapping[] = (mappings || []).map((m: any) => ({
+      inputField: m?.inputField ?? m?.input ?? '',
+      mlsField: { standardName: m?.mlsField?.standardName ?? m?.output ?? '' },
+      confidence: typeof m?.confidence === 'number' ? m.confidence : 0,
+      isRequired: !!m?.isRequired
+    }))
+
+    setFieldMappings(normalized)
+
+    // Child and local ValidationResult are structurally compatible; keep as-is
+    setValidationResult(validation as unknown as ValidationResult)
+
     setCurrentStep('processing')
-    processWithMappings(mappings)
+    processWithMappings(normalized)
   }
 
   // Process files with field mappings
@@ -333,9 +404,21 @@ export default function BulkUpload({
             }
           })
           
-          // Validate the mapped data
-          const validation = validateMLSData(record, mappings)
-          
+          // Validate the mapped data (returns { valid, missing })
+          const rawValidation = validateMLSData(record) as { valid: boolean; missing: string[] }
+
+          // Normalize to ValidationResult shape expected by this component/state
+          const requiredCount = mappings.filter(m => m.isRequired).length
+          const denom = Math.max(requiredCount || mappings.length || 1, rawValidation.missing.length || 0)
+          const completion = Math.max(0, Math.min(100, Math.round(100 - (rawValidation.missing.length / denom) * 100)))
+
+          const normalizedValidation: ValidationResult = {
+            isValid: rawValidation.valid,
+            completionPercentage: completion,
+            errors: (rawValidation.missing || []).map((f) => ({ field: f, message: `Missing required field: ${f}` as string, severity: 'error' as const })),
+            warnings: []
+          }
+
           // Create draft listing
           const draftListing: DraftListing = {
             id: `draft_${Date.now()}_${processedCount}_${Math.random().toString(36).substr(2, 9)}`,
@@ -346,14 +429,14 @@ export default function BulkUpload({
             originalData: record,
             mappedData: mappedData,
             fieldMatches: fieldMatches,
-            validationErrors: validation.errors,
-            validationWarnings: validation.warnings,
-            completionPercentage: validation.completionPercentage,
-            mlsCompliant: validation.isValid
+            validationErrors: normalizedValidation.errors,
+            validationWarnings: normalizedValidation.warnings,
+            completionPercentage: normalizedValidation.completionPercentage,
+            mlsCompliant: normalizedValidation.isValid
           }
-          
+
           processedListings.push(draftListing)
-          
+
           setProcessingStatus(prev => ({
             ...prev,
             processed: processedCount + 1,
@@ -424,13 +507,6 @@ export default function BulkUpload({
 
   return (
     <div className="space-y-6">
-      {/* Debug Info */}
-      <Alert>
-        <Target className="h-4 w-4" />
-        <AlertDescription>
-          <strong>Enhanced Field Mapping Active:</strong> System loaded with {MLS_FIELD_DEFINITIONS.length} MLS field definitions including all bathroom fields, property details, and features. Check browser console for detailed mapping logs.
-        </AlertDescription>
-      </Alert>
 
       {/* Step Indicator */}
       <div className="flex items-center justify-center space-x-2 mb-6 overflow-x-auto">
@@ -486,7 +562,7 @@ export default function BulkUpload({
                   }
                 </p>
                 <p className="text-sm text-gray-500">
-                  Enhanced with AI-powered field mapping • Up to {maxFiles} files • Up to {maxListings} listings per file
+                  Upload MLS exports with AI-powered field mapping • Up to {maxFiles} files • Up to {maxListings} listings per file
                 </p>
               </div>
             </CardContent>
@@ -543,6 +619,66 @@ export default function BulkUpload({
                       ))}
                     </div>
                   </div>
+
+                  {/* Detected Headers (across all files) */}
+                  {parsedFiles.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Detected Headers</CardTitle>
+                        <CardDescription>These are the headers we found across your uploaded file(s)</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-2">
+                          {Array.from(new Set(parsedFiles.flatMap(f => f.headers))).map((h) => (
+                            <Badge key={h} variant="outline">{h}</Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {(mappingReport.mapped > 0 || mappingReport.unmapped.length > 0) && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Field Mapping Report</CardTitle>
+                        <CardDescription>
+                          Mapped {mappingReport.mapped} fields
+                          {mappingReport.unmapped.length ? ` • ${mappingReport.unmapped.length} unmapped` : ''}
+                          {mappingReport.missingRequired.length ? ` • ${mappingReport.missingRequired.length} required missing` : ''}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {mappingReport.samples.length > 0 && (
+                          <div className="mb-3 text-sm">
+                            <div className="text-gray-700 font-medium mb-1">Examples:</div>
+                            <div className="flex flex-wrap gap-2">
+                              {mappingReport.samples.map((s, i) => (
+                                <Badge key={`${s.input}-${i}`} variant="secondary">
+                                  {s.input} → {s.standard} ({Math.round(s.confidence * 100)}%)
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {mappingReport.unmapped.length > 0 ? (
+                          <div className="text-sm">
+                            <div className="mb-2 text-gray-700 font-medium">Unmapped headers (add aliases for these):</div>
+                            <div className="flex flex-wrap gap-2">
+                              {mappingReport.unmapped.slice(0, 50).map((h) => (
+                                <Badge key={h} variant="outline">{h}</Badge>
+                              ))}
+                              {mappingReport.unmapped.length > 50 && (
+                                <span className="text-xs text-gray-500">…and {mappingReport.unmapped.length - 50} more</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-green-700">All headers mapped 🎉</div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
 
                   <div className="flex justify-end space-x-3">
                     <Button variant="outline" onClick={resetUpload}>

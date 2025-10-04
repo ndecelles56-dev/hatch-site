@@ -12,12 +12,23 @@ import {
   Target,
   Loader2
 } from 'lucide-react'
-import {
-  mapCSVHeaders,
-  validateMLSData,
-  type FieldMapping,
-  type ValidationResult
-} from '@/utils/fuzzyFieldMatcher'
+import { mapCSVHeaders, validateMLSData } from '@/utils/fuzzyFieldMatcher'
+
+// Local structural types to avoid relying on module type exports
+export type FieldMapping = {
+  input: string
+  output: string
+  confidence: number
+  isRequired?: boolean
+}
+
+type ValidationIssue = { message: string }
+export type ValidationResult = {
+  isValid: boolean
+  completionPercentage: number
+  errors: ValidationIssue[]
+  warnings: ValidationIssue[]
+}
 
 interface FuzzyFieldMapperProps {
   csvHeaders: string[]
@@ -48,14 +59,32 @@ export default function FuzzyFieldMapper({
       setProgress(40)
       
       // Perform actual mapping
-      const result = mapCSVHeaders(csvHeaders, 0.7)
-      setMappings(result.mappings)
+      const result = mapCSVHeaders(csvHeaders) as any
+      const mapped = Array.isArray(result?.mappings)
+        ? (result.mappings as FieldMapping[])
+        : (Array.isArray(result) ? (result as FieldMapping[]) : [])
+
+      console.debug('[FuzzyFieldMapper] csvHeaders =', csvHeaders)
+      console.debug('[FuzzyFieldMapper] mapping result =', result)
+      setMappings(mapped)
       setProgress(70)
       
       // Validate sample data if available
       if (sampleData.length > 0) {
-        const validation = validateMLSData(sampleData[0], result.mappings)
-        setValidationResult(validation)
+        const raw = validateMLSData(sampleData[0]) as { valid: boolean; missing: string[] }
+
+        // Derive a completion percentage using required fields if available, otherwise fall back to missing vs total mapped
+        const requiredCount = mapped.filter(m => m.isRequired).length
+        const denom = Math.max(requiredCount || mapped.length || 1, raw.missing.length || 0)
+        const completion = Math.max(0, Math.min(100, Math.round(100 - (raw.missing.length / denom) * 100)))
+
+        const normalized: ValidationResult = {
+          isValid: raw.valid,
+          completionPercentage: completion,
+          errors: (raw.missing || []).map((f) => ({ message: `Missing required field: ${f}` })),
+          warnings: []
+        }
+        setValidationResult(normalized)
       }
       
       setProgress(100)

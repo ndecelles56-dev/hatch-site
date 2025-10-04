@@ -22,6 +22,7 @@ import {
   DollarSign
 } from 'lucide-react'
 import { DraftListing, ValidationError } from './BulkListingUpload'
+import { MIN_PROPERTY_PHOTOS } from '@/constants/photoRequirements'
 
 interface DraftListingsManagerProps {
   draftListings: DraftListing[]
@@ -65,13 +66,13 @@ export default function DraftListingsManager({
     const hasPhotoErrors = rowErrors.some(e => e.type === 'photos')
 
     if (type === 'required' && hasRequiredErrors) {
-      return <AlertCircle className="w-4 h-4 text-red-500" title="Missing required fields" />
+      return <AlertCircle className="w-4 h-4 text-red-500" aria-label="Missing required fields" />
     }
     if (type === 'optional' && hasOptionalErrors) {
-      return <AlertTriangle className="w-4 h-4 text-yellow-500" title="Missing optional fields" />
+      return <AlertTriangle className="w-4 h-4 text-yellow-500" aria-label="Missing optional fields" />
     }
     if (type === 'photos' && hasPhotoErrors) {
-      return <Camera className="w-4 h-4 text-red-500" title="Insufficient photos" />
+      return <Camera className="w-4 h-4 text-red-500" aria-label={`Insufficient photos (minimum ${MIN_PROPERTY_PHOTOS})`} />
     }
     
     return <CheckCircle className="w-4 h-4 text-green-500" />
