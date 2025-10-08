@@ -364,7 +364,7 @@ CREATE UNIQUE INDEX "ClearCooperationTimer_listingId_key" ON "ClearCooperationTi
 -- CreateIndex
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF current_schema = 'public' AND NOT EXISTS (
     SELECT 1
     FROM pg_indexes
     WHERE schemaname = 'public'
@@ -380,7 +380,7 @@ $$;
 -- CreateIndex
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF current_schema = 'public' AND NOT EXISTS (
     SELECT 1
     FROM pg_indexes
     WHERE schemaname = 'public'

@@ -50,16 +50,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Person_tenantId_primaryPhone_key"
 CREATE INDEX IF NOT EXISTS "Person_tenantId_deletedAt_idx"
   ON "Person" ("tenantId", "deletedAt");
 
--- Bring org_id column on team_members to text for cross-org queries
 DO $$
 BEGIN
-  IF EXISTS (
+  IF current_schema = 'public' AND EXISTS (
     SELECT 1
     FROM information_schema.tables
     WHERE table_schema = 'public'
       AND table_name = 'team_members'
   ) THEN
-    ALTER TABLE "team_members"
+    ALTER TABLE public."team_members"
       ALTER COLUMN "org_id" TYPE TEXT USING "org_id"::TEXT;
   END IF;
 END$$;
