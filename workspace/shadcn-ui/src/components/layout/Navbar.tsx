@@ -3,13 +3,13 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import {
-  Building2,
   Menu,
   X,
   LogOut,
   BarChart3
 } from 'lucide-react'
 import { cn, resolveUserIdentity } from '@/lib/utils'
+import { HatchLogo } from '@/components/HatchLogo'
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -84,8 +84,7 @@ export function Navbar() {
           {/* Logo */}
           <div className={logoWrapperClasses}>
             <Link to="/" className="flex-shrink-0 flex items-center">
-              <Building2 className="h-8 w-8 text-blue-600" />
-              <span className="ml-2 text-xl font-bold text-gray-900">Hatch</span>
+              <HatchLogo className="h-8" />
             </Link>
           </div>
 

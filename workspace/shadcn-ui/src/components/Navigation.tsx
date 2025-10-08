@@ -6,12 +6,14 @@ import {
   Home, 
   BarChart3, 
   Users, 
-  Building2, 
   FileText, 
   UserPlus,
   DollarSign,
-  LogOut
+  LogOut,
+  MessageSquare,
+  ShieldCheck
 } from 'lucide-react'
+import { HatchLogo } from '@/components/HatchLogo'
 
 export default function Navigation() {
   const { user, signOut, profile } = useAuth()
@@ -26,13 +28,16 @@ export default function Navigation() {
 
   const authenticatedNavItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+    { path: '/messages', label: 'Messages', icon: MessageSquare },
     { path: '/pricing', label: 'Pricing', icon: DollarSign }
   ]
 
   const brokerNavItems = [
-    { path: '/broker/dashboard', label: 'Broker Dashboard', icon: Building2 },
-    { path: '/crm', label: 'CRM', icon: Users },
-    { path: '/broker/properties', label: 'Properties', icon: Building2 },
+    { path: '/broker/dashboard', label: 'Broker Dashboard', icon: BarChart3 },
+  { path: '/broker/crm', label: 'CRM', icon: Users },
+  { path: '/broker/compliance', label: 'Compliance', icon: ShieldCheck },
+    { path: '/messages', label: 'Messages', icon: MessageSquare },
+    { path: '/broker/properties', label: 'Properties', icon: Home },
     { path: '/broker/listings', label: 'Listings', icon: FileText },
     { path: '/broker/team', label: 'Team', icon: UserPlus },
     { path: '/pricing', label: 'Pricing', icon: DollarSign }
@@ -58,8 +63,7 @@ export default function Navigation() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
-            <Building2 className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">Hatch</span>
+            <HatchLogo className="h-8" />
           </Link>
 
           {/* Navigation Items */}

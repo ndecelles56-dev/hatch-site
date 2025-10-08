@@ -1,852 +1,724 @@
-import React, { useState, useMemo } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Calendar } from '@/components/ui/calendar'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { toast } from '@/components/ui/use-toast'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  isToday,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+  subMonths
+} from 'date-fns'
 import {
   Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
   Clock,
-  Plus,
   Filter,
-  Users,
-  MapPin,
-  Phone,
-  Edit,
+  Plus,
   Trash2,
-  Mail
+  Users
 } from 'lucide-react'
-import { format, isToday, isTomorrow, parseISO, isSameDay, isValid } from 'date-fns'
 
-interface Appointment {
-  id: string
-  title: string
-  time: string
-  date: string
-  client: string
-  type: 'showing' | 'meeting' | 'inspection' | 'closing'
-  location: string
-  notes?: string
-  clientPhone?: string
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from '@/components/ui/use-toast'
+import {
+  CalendarEventRecord,
+  createCalendarEvent,
+  deleteCalendarEvent,
+  listCalendarEvents,
+  updateCalendarEvent
+} from '@/lib/api/hatch'
+import { cn } from '@/lib/utils'
+
+const TENANT_ID = import.meta.env.VITE_TENANT_ID || 'tenant-hatch'
+
+const typeOptions = [
+  { label: 'Meeting', value: 'MEETING' },
+  { label: 'Property Showing', value: 'SHOWING' },
+  { label: 'Inspection', value: 'INSPECTION' },
+  { label: 'Closing', value: 'CLOSING' },
+  { label: 'Follow Up', value: 'FOLLOW_UP' },
+  { label: 'Marketing', value: 'MARKETING' },
+  { label: 'Other', value: 'OTHER' }
+]
+
+const eventTypeLabel = (value: CalendarEventRecord['eventType']) =>
+  typeOptions.find((option) => option.value === value)?.label ?? value.toLowerCase()
+
+const typeBadgeVariant = (value: CalendarEventRecord['eventType']) => {
+  switch (value) {
+    case 'SHOWING':
+      return 'bg-blue-100 text-blue-800'
+    case 'MEETING':
+      return 'bg-green-100 text-green-800'
+    case 'INSPECTION':
+      return 'bg-purple-100 text-purple-800'
+    case 'CLOSING':
+      return 'bg-orange-100 text-orange-800'
+    case 'FOLLOW_UP':
+      return 'bg-amber-100 text-amber-800'
+    case 'MARKETING':
+      return 'bg-pink-100 text-pink-800'
+    default:
+      return 'bg-gray-100 text-gray-800'
+  }
 }
 
-export default function CalendarPage() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
-  const [showNewAppointment, setShowNewAppointment] = useState(false)
-  const [showEditAppointment, setShowEditAppointment] = useState(false)
-  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false)
-  const [showCallDialog, setShowCallDialog] = useState(false)
-  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    {
-      id: '1',
-      title: 'Property Showing - Ocean View Condo',
-      time: '10:00',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      client: 'Jennifer Martinez',
-      type: 'showing',
-      location: '123 Ocean Drive, Miami Beach',
-      notes: 'Client interested in waterfront properties',
-      clientPhone: '+1 (305) 555-0123'
-    },
-    {
-      id: '2',
-      title: 'Client Meeting - First Time Buyer',
-      time: '14:00',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      client: 'Robert Chen',
-      type: 'meeting',
-      location: 'Office',
-      notes: 'Pre-approval meeting',
-      clientPhone: '+1 (305) 555-0124'
-    },
-    {
-      id: '3',
-      title: 'Property Inspection',
-      time: '09:00',
-      date: format(new Date(Date.now() + 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
-      client: 'Lisa Thompson',
-      type: 'inspection',
-      location: '456 Palm Avenue, Tampa',
-      notes: 'Final inspection before closing',
-      clientPhone: '+1 (305) 555-0125'
-    }
-  ])
+const priorityLabel = (value: CalendarEventRecord['priority']) => {
+  switch (value) {
+    case 'HIGH':
+      return 'High'
+    case 'LOW':
+      return 'Low'
+    default:
+      return 'Medium'
+  }
+}
 
-  const [newAppointment, setNewAppointment] = useState({
+const statusBadgeVariant = (value: CalendarEventRecord['status']) => {
+  switch (value) {
+    case 'CONFIRMED':
+      return 'bg-green-100 text-green-800'
+    case 'COMPLETED':
+      return 'bg-blue-100 text-blue-800'
+    case 'CANCELLED':
+      return 'bg-red-100 text-red-800'
+    default:
+      return 'bg-amber-100 text-amber-800'
+  }
+}
+
+const eventTypeIndicatorClasses: Record<CalendarEventRecord['eventType'], string> = {
+  SHOWING: 'bg-blue-500',
+  MEETING: 'bg-green-500',
+  INSPECTION: 'bg-purple-500',
+  CLOSING: 'bg-orange-500',
+  FOLLOW_UP: 'bg-amber-500',
+  MARKETING: 'bg-pink-500',
+  OTHER: 'bg-slate-400'
+}
+
+const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+
+interface EventFormState {
+  id?: string
+  title: string
+  type: CalendarEventRecord['eventType']
+  date: string
+  startTime: string
+  endTime: string
+  location: string
+  clientNotes: string
+  status: CalendarEventRecord['status']
+  priority: CalendarEventRecord['priority']
+}
+
+const emptyFormState = (baseDate?: Date): EventFormState => {
+  const now = new Date(baseDate ?? Date.now())
+  if (baseDate) {
+    now.setHours(9, 0, 0, 0)
+  } else {
+    now.setSeconds(0, 0)
+  }
+  const end = new Date(now.getTime() + 60 * 60 * 1000)
+
+  return {
     title: '',
-    time: '',
-    date: format(new Date(), 'yyyy-MM-dd'),
-    client: '',
-    type: 'meeting' as const,
+    type: 'MEETING',
+    date: format(now, 'yyyy-MM-dd'),
+    startTime: format(now, 'HH:mm'),
+    endTime: format(end, 'HH:mm'),
     location: '',
-    notes: '',
-    clientPhone: ''
-  })
-
-  const [rescheduleData, setRescheduleData] = useState({
-    date: '',
-    time: ''
-  })
-
-  // Create appointment dates for calendar modifiers
-  const appointmentDates = useMemo(() => {
-    return appointments
-      .map(apt => {
-        try {
-          const date = parseISO(apt.date)
-          return isValid(date) ? date : null
-        } catch {
-          return null
-        }
-      })
-      .filter((date): date is Date => date !== null)
-  }, [appointments])
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'showing': return 'bg-blue-100 text-blue-800'
-      case 'meeting': return 'bg-green-100 text-green-800'
-      case 'inspection': return 'bg-purple-100 text-purple-800'
-      case 'closing': return 'bg-orange-100 text-orange-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
+    clientNotes: '',
+    status: 'PENDING',
+    priority: 'MEDIUM'
   }
+}
 
-  const getDateLabel = (dateString: string) => {
+const toFormState = (event: CalendarEventRecord): EventFormState => {
+  const start = parseISO(event.startAt)
+  const end = parseISO(event.endAt)
+  return {
+    id: event.id,
+    title: event.title,
+    type: event.eventType,
+    date: format(start, 'yyyy-MM-dd'),
+    startTime: format(start, 'HH:mm'),
+    endTime: format(end, 'HH:mm'),
+    location: event.location ?? '',
+    clientNotes: event.notes ?? '',
+    status: event.status,
+    priority: event.priority
+  }
+}
+
+const formatTimeRange = (startISO: string, endISO: string) => {
+  const start = parseISO(startISO)
+  const end = parseISO(endISO)
+  return `${format(start, 'h:mm a')} – ${format(end, 'h:mm a')}`
+}
+
+const buildCalendarWeeks = (month: Date) => {
+  const start = startOfWeek(startOfMonth(month))
+  const end = endOfWeek(endOfMonth(month))
+  const days = eachDayOfInterval({ start, end })
+
+  const weeks: Date[][] = []
+  for (let index = 0; index < days.length; index += 7) {
+    weeks.push(days.slice(index, index + 7))
+  }
+  return weeks
+}
+
+const CalendarPage = () => {
+  const [events, setEvents] = useState<CalendarEventRecord[]>([])
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
+  const [currentMonth, setCurrentMonth] = useState<Date>(() => startOfMonth(new Date()))
+  const [isLoading, setIsLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [formState, setFormState] = useState<EventFormState>(() => emptyFormState())
+  const [isSaving, setIsSaving] = useState(false)
+
+  const loadEvents = async () => {
     try {
-      const date = parseISO(dateString)
-      if (!isValid(date)) return dateString
-      if (isToday(date)) return 'Today'
-      if (isTomorrow(date)) return 'Tomorrow'
-      return format(date, 'MMM dd')
-    } catch {
-      return dateString
-    }
-  }
-
-  const formatTime = (time: string) => {
-    if (time && time.includes(':')) {
-      const [hours, minutes] = time.split(':')
-      const hour = parseInt(hours)
-      if (isNaN(hour)) return time
-      const ampm = hour >= 12 ? 'PM' : 'AM'
-      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-      return `${displayHour}:${minutes} ${ampm}`
-    }
-    return time
-  }
-
-  const getSelectedDateAppointments = () => {
-    if (!selectedDate) return []
-    const selectedDateString = format(selectedDate, 'yyyy-MM-dd')
-    return appointments.filter(apt => apt.date === selectedDateString)
-  }
-
-  const handleAddAppointment = () => {
-    if (!newAppointment.title || !newAppointment.client || !newAppointment.time) {
-      toast({
-        title: 'Missing details',
-        description: 'Please complete all required fields before saving.',
-        variant: 'destructive',
+      setIsLoading(true)
+      const start = new Date()
+      start.setMonth(start.getMonth() - 1)
+      const end = new Date()
+      end.setMonth(end.getMonth() + 2)
+      const data = await listCalendarEvents(TENANT_ID, {
+        start: start.toISOString(),
+        end: end.toISOString()
       })
+      setEvents(data)
+    } catch (error) {
+      console.error(error)
+      toast({
+        title: 'Unable to load events',
+        description: error instanceof Error ? error.message : 'Unexpected error fetching calendar events',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadEvents()
+  }, [])
+
+  const openCreateDialog = () => {
+    setFormState(emptyFormState(selectedDate))
+    setDialogOpen(true)
+  }
+
+  const handleEdit = (event: CalendarEventRecord) => {
+    const eventDate = parseISO(event.startAt)
+    setSelectedDate(eventDate)
+    setCurrentMonth(startOfMonth(eventDate))
+    setFormState(toFormState(event))
+    setDialogOpen(true)
+  }
+
+  const handleSelectDate = (day: Date) => {
+    setSelectedDate(day)
+    setCurrentMonth(startOfMonth(day))
+  }
+
+  const handleDelete = async (eventId: string) => {
+    try {
+      await deleteCalendarEvent(eventId)
+      setEvents((prev) => prev.filter((event) => event.id !== eventId))
+      toast({ title: 'Event removed' })
+    } catch (error) {
+      toast({
+        title: 'Failed to delete event',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!formState.title.trim()) {
+      toast({ title: 'Title required', description: 'Please provide a title for the event', variant: 'destructive' })
       return
     }
 
-    const appointment: Appointment = {
-      ...newAppointment,
-      id: Date.now().toString()
-    }
+    setIsSaving(true)
+    try {
+      const start = new Date(`${formState.date}T${formState.startTime}`)
+      const end = new Date(`${formState.date}T${formState.endTime}`)
+      if (end <= start) {
+        toast({
+          title: 'Invalid time range',
+          description: 'End time must be after start time',
+          variant: 'destructive'
+        })
+        return
+      }
 
-    setAppointments([...appointments, appointment])
-    setNewAppointment({
-      title: '',
-      time: '',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      client: '',
-      type: 'meeting',
-      location: '',
-      notes: '',
-      clientPhone: ''
-    })
-    setShowNewAppointment(false)
-  }
+      const payload = {
+        tenantId: TENANT_ID,
+        title: formState.title,
+        eventType: formState.type,
+        status: formState.status,
+        priority: formState.priority,
+        startAt: start.toISOString(),
+        endAt: end.toISOString(),
+        location: formState.location || undefined,
+        notes: formState.clientNotes || undefined
+      }
 
-  const handleEditAppointment = (appointment: Appointment) => {
-    setEditingAppointment(appointment)
-    setNewAppointment({
-      title: appointment.title,
-      time: appointment.time,
-      date: appointment.date,
-      client: appointment.client,
-      type: appointment.type,
-      location: appointment.location,
-      notes: appointment.notes || '',
-      clientPhone: appointment.clientPhone || ''
-    })
-    setShowEditAppointment(true)
-  }
+      if (formState.id) {
+        const updated = await updateCalendarEvent(formState.id, payload)
+        setEvents((prev) => prev.map((event) => (event.id === updated.id ? updated : event)))
+        toast({ title: 'Event updated' })
+      } else {
+        const created = await createCalendarEvent(payload)
+        setEvents((prev) => [...prev, created])
+        toast({ title: 'Event scheduled' })
+      }
 
-  const handleUpdateAppointment = () => {
-    if (!editingAppointment || !newAppointment.title || !newAppointment.client || !newAppointment.time) {
+      setSelectedDate(start)
+      setCurrentMonth(startOfMonth(start))
+      setDialogOpen(false)
+    } catch (error) {
       toast({
-        title: 'Missing details',
-        description: 'Please complete all required fields before updating.',
-        variant: 'destructive',
+        title: formState.id ? 'Failed to update event' : 'Failed to create event',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+        variant: 'destructive'
       })
-      return
-    }
-
-    const updatedAppointments = appointments.map(apt => 
-      apt.id === editingAppointment.id 
-        ? { ...newAppointment, id: editingAppointment.id }
-        : apt
-    )
-
-    setAppointments(updatedAppointments)
-    setShowEditAppointment(false)
-    setEditingAppointment(null)
-    setNewAppointment({
-      title: '',
-      time: '',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      client: '',
-      type: 'meeting',
-      location: '',
-      notes: '',
-      clientPhone: ''
-    })
-  }
-
-  const handleDeleteAppointment = (id: string) => {
-    setAppointments(appointments.filter(apt => apt.id !== id))
-  }
-
-  const handleCallClient = (appointment: Appointment) => {
-    if (appointment.clientPhone) {
-      // Try to open phone dialer
-      window.open(`tel:${appointment.clientPhone}`, '_self')
-    } else {
-      setEditingAppointment(appointment)
-      setShowCallDialog(true)
+    } finally {
+      setIsSaving(false)
     }
   }
 
-  const handleReschedule = (appointment: Appointment) => {
-    setEditingAppointment(appointment)
-    setRescheduleData({
-      date: appointment.date,
-      time: appointment.time
-    })
-    setShowRescheduleDialog(true)
-  }
-
-  const handleRescheduleConfirm = () => {
-    if (!editingAppointment || !rescheduleData.date || !rescheduleData.time) {
-      toast({
-        title: 'Incomplete reschedule',
-        description: 'Select both a date and time to reschedule this appointment.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const updatedAppointments = appointments.map(apt => 
-      apt.id === editingAppointment.id 
-        ? { ...apt, date: rescheduleData.date, time: rescheduleData.time }
-        : apt
-    )
-
-    setAppointments(updatedAppointments)
-    setShowRescheduleDialog(false)
-    setEditingAppointment(null)
-    setRescheduleData({ date: '', time: '' })
-  }
-
-  const upcomingAppointments = appointments
-    .filter(apt => {
-      try {
-        return new Date(apt.date + 'T' + apt.time) >= new Date()
-      } catch {
-        return false
+  const eventsByDate = useMemo(() => {
+    const grouped = new Map<string, CalendarEventRecord[]>()
+    events.forEach((event) => {
+      const key = format(parseISO(event.startAt), 'yyyy-MM-dd')
+      const collection = grouped.get(key)
+      if (collection) {
+        collection.push(event)
+      } else {
+        grouped.set(key, [event])
       }
     })
-    .sort((a, b) => {
-      try {
-        return new Date(a.date + 'T' + a.time).getTime() - new Date(b.date + 'T' + b.time).getTime()
-      } catch {
-        return 0
-      }
+
+    grouped.forEach((value) => {
+      value.sort((a, b) => parseISO(a.startAt).getTime() - parseISO(b.startAt).getTime())
     })
-    .slice(0, 5)
+
+    return grouped
+  }, [events])
+
+  const calendarWeeks = useMemo(() => buildCalendarWeeks(currentMonth), [currentMonth])
+
+  const monthLabel = useMemo(() => format(currentMonth, 'MMMM yyyy'), [currentMonth])
+
+  const shiftMonth = (amount: number) => {
+    setCurrentMonth((prev) => {
+      const next = amount > 0 ? addMonths(prev, amount) : subMonths(prev, Math.abs(amount))
+      setSelectedDate((prevSelected) => {
+        const candidate = new Date(prevSelected)
+        const maxDay = endOfMonth(next).getDate()
+        candidate.setFullYear(next.getFullYear(), next.getMonth(), Math.min(prevSelected.getDate(), maxDay))
+        return candidate
+      })
+      return next
+    })
+  }
+
+  const eventsForSelectedDate = useMemo(() => {
+    return events
+      .filter((event) => isSameDay(parseISO(event.startAt), selectedDate))
+      .sort((a, b) => parseISO(a.startAt).getTime() - parseISO(b.startAt).getTime())
+  }, [events, selectedDate])
+
+  const upcomingEvents = useMemo(() => {
+    const now = new Date()
+    return events
+      .filter((event) => parseISO(event.startAt) >= now)
+      .sort((a, b) => parseISO(a.startAt).getTime() - parseISO(b.startAt).getTime())
+      .slice(0, 5)
+  }, [events])
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Calendar</h1>
-          <p className="text-gray-600">Manage your appointments and schedule</p>
+          <p className="text-gray-600">Schedule management powered by live CRM events</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline">
+          <Button variant="outline" disabled>
             <Filter className="w-4 h-4 mr-2" />
             Filter
           </Button>
-          <Dialog open={showNewAppointment} onOpenChange={setShowNewAppointment}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                New Appointment
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Schedule New Appointment</DialogTitle>
-                <DialogDescription>
-                  Add a new appointment to your calendar
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Title *</Label>
-                  <Input
-                    id="title"
-                    value={newAppointment.title}
-                    onChange={(e) => setNewAppointment({...newAppointment, title: e.target.value})}
-                    placeholder="Property showing, client meeting..."
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="client">Client *</Label>
-                  <Input
-                    id="client"
-                    value={newAppointment.client}
-                    onChange={(e) => setNewAppointment({...newAppointment, client: e.target.value})}
-                    placeholder="Client name"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="clientPhone">Client Phone</Label>
-                  <Input
-                    id="clientPhone"
-                    value={newAppointment.clientPhone}
-                    onChange={(e) => setNewAppointment({...newAppointment, clientPhone: e.target.value})}
-                    placeholder="+1 (555) 123-4567"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="date">Date</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={newAppointment.date}
-                      onChange={(e) => setNewAppointment({...newAppointment, date: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="time">Time *</Label>
-                    <Input
-                      id="time"
-                      type="time"
-                      value={newAppointment.time}
-                      onChange={(e) => setNewAppointment({...newAppointment, time: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="type">Type</Label>
-                  <Select value={newAppointment.type} onValueChange={(value: any) => setNewAppointment({...newAppointment, type: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="meeting">Meeting</SelectItem>
-                      <SelectItem value="showing">Property Showing</SelectItem>
-                      <SelectItem value="inspection">Inspection</SelectItem>
-                      <SelectItem value="closing">Closing</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="location">Location</Label>
-                  <Input
-                    id="location"
-                    value={newAppointment.location}
-                    onChange={(e) => setNewAppointment({...newAppointment, location: e.target.value})}
-                    placeholder="Office, property address..."
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={newAppointment.notes}
-                    onChange={(e) => setNewAppointment({...newAppointment, notes: e.target.value})}
-                    placeholder="Additional notes..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex gap-2 pt-4">
-                  <Button onClick={handleAddAppointment} className="flex-1">
-                    Schedule Appointment
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowNewAppointment(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={openCreateDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            New Appointment
+          </Button>
         </div>
       </div>
 
-      {/* Edit Appointment Dialog */}
-      <Dialog open={showEditAppointment} onOpenChange={setShowEditAppointment}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Appointment</DialogTitle>
-            <DialogDescription>
-              Update appointment details
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-title">Title *</Label>
-              <Input
-                id="edit-title"
-                value={newAppointment.title}
-                onChange={(e) => setNewAppointment({...newAppointment, title: e.target.value})}
-                placeholder="Property showing, client meeting..."
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="edit-client">Client *</Label>
-              <Input
-                id="edit-client"
-                value={newAppointment.client}
-                onChange={(e) => setNewAppointment({...newAppointment, client: e.target.value})}
-                placeholder="Client name"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="edit-clientPhone">Client Phone</Label>
-              <Input
-                id="edit-clientPhone"
-                value={newAppointment.clientPhone}
-                onChange={(e) => setNewAppointment({...newAppointment, clientPhone: e.target.value})}
-                placeholder="+1 (305) 555-0125"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-date">Date</Label>
-                <Input
-                  id="edit-date"
-                  type="date"
-                  value={newAppointment.date}
-                  onChange={(e) => setNewAppointment({...newAppointment, date: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-time">Time *</Label>
-                <Input
-                  id="edit-time"
-                  type="time"
-                  value={newAppointment.time}
-                  onChange={(e) => setNewAppointment({...newAppointment, time: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="edit-type">Type</Label>
-              <Select value={newAppointment.type} onValueChange={(value: any) => setNewAppointment({...newAppointment, type: value})}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="meeting">Meeting</SelectItem>
-                  <SelectItem value="showing">Property Showing</SelectItem>
-                  <SelectItem value="inspection">Inspection</SelectItem>
-                  <SelectItem value="closing">Closing</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="edit-location">Location</Label>
-              <Input
-                id="edit-location"
-                value={newAppointment.location}
-                onChange={(e) => setNewAppointment({...newAppointment, location: e.target.value})}
-                placeholder="Office, property address..."
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="edit-notes">Notes</Label>
-              <Textarea
-                id="edit-notes"
-                value={newAppointment.notes}
-                onChange={(e) => setNewAppointment({...newAppointment, notes: e.target.value})}
-                placeholder="Additional notes..."
-                rows={3}
-              />
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleUpdateAppointment} className="flex-1">
-                Update Appointment
-              </Button>
-              <Button variant="outline" onClick={() => setShowEditAppointment(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reschedule Dialog */}
-      <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Reschedule Appointment</DialogTitle>
-            <DialogDescription>
-              Select new date and time for "{editingAppointment?.title}"
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="reschedule-date">New Date</Label>
-                <Input
-                  id="reschedule-date"
-                  type="date"
-                  value={rescheduleData.date}
-                  onChange={(e) => setRescheduleData({...rescheduleData, date: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="reschedule-time">New Time</Label>
-                <Input
-                  id="reschedule-time"
-                  type="time"
-                  value={rescheduleData.time}
-                  onChange={(e) => setRescheduleData({...rescheduleData, time: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleRescheduleConfirm} className="flex-1">
-                Reschedule
-              </Button>
-              <Button variant="outline" onClick={() => setShowRescheduleDialog(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Call Dialog */}
-      <Dialog open={showCallDialog} onOpenChange={setShowCallDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Contact Client</DialogTitle>
-            <DialogDescription>
-              No phone number available for {editingAppointment?.client}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              You can add a phone number by editing this appointment, or contact the client through other means.
-            </p>
-            <div className="flex gap-2 pt-4">
-              <Button 
-                onClick={() => {
-                  setShowCallDialog(false)
-                  if (editingAppointment) {
-                    handleEditAppointment(editingAppointment)
-                  }
-                }} 
-                className="flex-1"
-              >
-                Edit Appointment
-              </Button>
-              <Button variant="outline" onClick={() => setShowCallDialog(false)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <div className="grid grid-cols-1 xl:grid-cols-7 gap-6">
-        {/* Calendar - Fixed alignment with custom CSS */}
-        <Card className="xl:col-span-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-xl">Calendar</CardTitle>
-            <CardDescription>Select a date to view appointments</CardDescription>
+            <CardTitle>Calendar</CardTitle>
+            <CardDescription>Select a date to view or add appointments</CardDescription>
           </CardHeader>
-          <CardContent className="p-6">
-            <style jsx>{`
-              .calendar-container .rdp-month_grid {
-                width: 100%;
-                table-layout: fixed;
-              }
-              .calendar-container .rdp-weekdays {
-                display: flex;
-                width: 100%;
-              }
-              .calendar-container .rdp-weekday {
-                flex: 1;
-                text-align: center;
-                width: calc(100% / 7);
-                padding: 0.5rem 0;
-                font-size: 0.875rem;
-                font-weight: 500;
-                color: #6b7280;
-              }
-              .calendar-container .rdp-week {
-                display: flex;
-                width: 100%;
-              }
-              .calendar-container .rdp-week td {
-                flex: 1;
-                width: calc(100% / 7);
-                text-align: center;
-                padding: 0;
-              }
-              .calendar-container .rdp-day_button {
-                width: 100%;
-                height: 36px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-              }
-            `}</style>
-            <div className="calendar-container">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                className="rounded-md border w-full"
-                modifiers={{
-                  hasAppointments: appointmentDates
-                }}
-                modifiersStyles={{
-                  hasAppointments: {
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    fontWeight: 'bold'
-                  }
-                }}
-              />
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => shiftMonth(-1)}
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="text-sm font-semibold text-gray-700">{monthLabel}</div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => shiftMonth(1)}
+                aria-label="Next month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-7 text-center text-xs font-medium uppercase tracking-wide text-gray-500">
+              {weekdayLabels.map((day) => (
+                <div key={day} className="py-1">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-1 grid grid-cols-7 gap-1 text-sm">
+              {calendarWeeks.map((week, weekIndex) => (
+                <div key={`week-${weekIndex}`} className="contents">
+                  {week.map((day) => {
+                    const key = format(day, 'yyyy-MM-dd')
+                    const dayEvents = eventsByDate.get(key) ?? []
+                    const isSelected = isSameDay(day, selectedDate)
+                    const inMonth = isSameMonth(day, currentMonth)
+                    const today = isToday(day)
+
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleSelectDate(day)}
+                        aria-pressed={isSelected}
+                        aria-label={`View events for ${format(day, 'MMMM d, yyyy')}`}
+                        className={cn(
+                          'flex h-20 flex-col rounded-lg border border-gray-200 bg-white p-2 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-primary/30 hover:border-primary/60',
+                          !inMonth && 'bg-slate-50 text-gray-400 hover:border-gray-200',
+                          isSelected && 'border-primary bg-primary/10 shadow-sm',
+                          today && !isSelected && 'border-primary/60'
+                        )}
+                      >
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span>{format(day, 'd')}</span>
+                          {today && (
+                            <span className="text-[10px] font-medium uppercase text-primary">Today</span>
+                          )}
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-1">
+                          {dayEvents.slice(0, 3).map((event) => (
+                            <span
+                              key={event.id}
+                              className={cn('h-2 w-2 rounded-full', eventTypeIndicatorClasses[event.eventType])}
+                              title={`${event.title} • ${eventTypeLabel(event.eventType)}`}
+                            />
+                          ))}
+                          {dayEvents.length > 3 && (
+                            <span className="text-[10px] text-gray-500">+{dayEvents.length - 3}</span>
+                          )}
+                        </div>
+
+                        <div className="mt-auto text-[11px] text-gray-500">
+                          {dayEvents.length === 0 ? 'No events' : `${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''}`}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Selected Date Appointments */}
-        <Card className="xl:col-span-3">
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-xl">
-              {selectedDate ? format(selectedDate, 'EEEE, MMMM do, yyyy') : 'Select a date'}
-            </CardTitle>
-            <CardDescription>
-              {selectedDate ? `Appointments for ${getDateLabel(format(selectedDate, 'yyyy-MM-dd'))}` : 'Choose a date to view appointments'}
-            </CardDescription>
+            <CardTitle>Events on {format(selectedDate, 'MMMM d, yyyy')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {getSelectedDateAppointments().length > 0 ? (
-                getSelectedDateAppointments().map((appointment) => (
-                  <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center space-x-4">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-blue-600">{formatTime(appointment.time)}</div>
+            {isLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Skeleton key={`event-skeleton-${index}`} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : eventsForSelectedDate.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-600 mb-2">No events scheduled for this day</p>
+                <Button variant="outline" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Event
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {eventsForSelectedDate.map((event) => (
+                  <Card key={event.id} className="border border-gray-200">
+                    <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                      <div>
+                        <CardTitle className="text-lg">{event.title}</CardTitle>
+                        <CardDescription>
+                          {formatTimeRange(event.startAt, event.endAt)}
+                        </CardDescription>
                       </div>
-                      
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h3 className="font-semibold text-gray-900">{appointment.title}</h3>
-                          <Badge className={getTypeColor(appointment.type)}>
-                            {appointment.type}
-                          </Badge>
-                        </div>
-                        
-                        <div className="flex items-center space-x-4 text-sm text-gray-600">
-                          <div className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
-                            <span>{appointment.client}</span>
-                          </div>
-                          {appointment.location && (
-                            <div className="flex items-center">
-                              <MapPin className="w-4 h-4 mr-1" />
-                              <span>{appointment.location}</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {appointment.notes && (
-                          <p className="text-sm text-gray-500 mt-1">{appointment.notes}</p>
-                        )}
+                      <div className="flex gap-2">
+                        <Badge className={typeBadgeVariant(event.eventType)}>{eventTypeLabel(event.eventType)}</Badge>
+                        <Badge className={statusBadgeVariant(event.status)}>{event.status.toLowerCase()}</Badge>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleCallClient(appointment)}
-                      >
-                        <Phone className="w-4 h-4 mr-1" />
-                        Call
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleEditAppointment(appointment)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="sm" variant="outline">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Appointment</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete "{appointment.title}"? This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteAppointment(appointment.id)}>
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p>No appointments scheduled for this date</p>
-                  <Button 
-                    variant="outline" 
-                    className="mt-3"
-                    onClick={() => {
-                      setNewAppointment({
-                        ...newAppointment,
-                        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
-                      })
-                      setShowNewAppointment(true)
-                    }}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Schedule Appointment
-                  </Button>
-                </div>
-              )}
-            </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {event.notes && (
+                        <div className="flex items-center text-sm text-gray-600">
+                          <Users className="w-4 h-4 mr-2" />
+                          {event.notes}
+                        </div>
+                      )}
+                      {event.location && (
+                        <div className="flex items-center text-sm text-gray-600">
+                          <CalendarIcon className="w-4 h-4 mr-2" />
+                          {event.location}
+                        </div>
+                      )}
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="w-4 h-4 mr-2" />
+                        Priority: {priorityLabel(event.priority)}
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(event)}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="ghost" className="flex-1 text-red-600" onClick={() => handleDelete(event.id)}>
+                          <Trash2 className="w-4 h-4 mr-2" /> Remove
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Upcoming appointments */}
       <Card>
         <CardHeader>
-          <CardTitle>Upcoming Appointments</CardTitle>
-          <CardDescription>Your next scheduled meetings and showings</CardDescription>
+          <CardTitle>Upcoming events</CardTitle>
+          <CardDescription>Next five events across your team</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {upcomingAppointments.length > 0 ? (
-              upcomingAppointments.map((appointment) => (
-                <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex flex-col items-center text-center">
-                      <div className="text-sm font-medium text-gray-900">{getDateLabel(appointment.date)}</div>
-                      <div className="text-lg font-bold text-blue-600">{formatTime(appointment.time)}</div>
-                    </div>
-                    
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">{appointment.title}</h3>
-                        <Badge className={getTypeColor(appointment.type)}>
-                          {appointment.type}
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <div className="flex items-center">
-                          <Users className="w-4 h-4 mr-1" />
-                          <span>{appointment.client}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          <span>{appointment.location}</span>
-                        </div>
-                      </div>
-                    </div>
+          {isLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={`upcoming-skeleton-${index}`} className="h-14 w-full" />
+              ))}
+            </div>
+          ) : upcomingEvents.length === 0 ? (
+            <p className="text-sm text-gray-500">No upcoming events scheduled.</p>
+          ) : (
+            <div className="space-y-3">
+              {upcomingEvents.map((event) => (
+                <div
+                  key={`upcoming-${event.id}`}
+                  className="flex items-center justify-between p-3 border rounded-lg"
+                >
+                  <div>
+                    <p className="font-medium">{event.title}</p>
+                    <p className="text-sm text-gray-600">
+                      {format(parseISO(event.startAt), 'MMM d, h:mm a')} • {eventTypeLabel(event.eventType)}
+                    </p>
                   </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleCallClient(appointment)}
-                    >
-                      <Phone className="w-4 h-4 mr-1" />
-                      Call
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleReschedule(appointment)}
-                    >
-                      Reschedule
-                    </Button>
-                  </div>
+                  <Badge className={statusBadgeVariant(event.status)}>{event.status.toLowerCase()}</Badge>
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <CalendarIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No upcoming appointments</h3>
-                <p className="text-gray-600 mb-6">Start scheduling meetings with your clients</p>
-                <Button onClick={() => setShowNewAppointment(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Schedule Your First Appointment
-                </Button>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{formState.id ? 'Edit event' : 'Schedule event'}</DialogTitle>
+            <DialogDescription>
+              {formState.id ? 'Update the meeting details' : 'Create a new appointment for your team'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                value={formState.title}
+                onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
+                placeholder="Property showing with John Doe"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="date">Date *</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={formState.date}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, date: event.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="type">Type</Label>
+                <Select
+                  value={formState.type}
+                  onValueChange={(value: CalendarEventRecord['eventType']) =>
+                    setFormState((prev) => ({ ...prev, type: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {typeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="startTime">Start time *</Label>
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={formState.startTime}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, startTime: event.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="endTime">End time *</Label>
+                <Input
+                  id="endTime"
+                  type="time"
+                  value={formState.endTime}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, endTime: event.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={formState.location}
+                onChange={(event) => setFormState((prev) => ({ ...prev, location: event.target.value }))}
+                placeholder="123 Ocean Drive, Miami"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="notes">Client / internal notes</Label>
+              <Textarea
+                id="notes"
+                rows={3}
+                value={formState.clientNotes}
+                onChange={(event) => setFormState((prev) => ({ ...prev, clientNotes: event.target.value }))}
+                placeholder="Include participants, prep work, or dial-in details"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={formState.status}
+                  onValueChange={(value: CalendarEventRecord['status']) =>
+                    setFormState((prev) => ({ ...prev, status: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="priority">Priority</Label>
+                <Select
+                  value={formState.priority}
+                  onValueChange={(value: CalendarEventRecord['priority']) =>
+                    setFormState((prev) => ({ ...prev, priority: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">Low</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={isSaving}>
+                {isSaving ? 'Saving…' : formState.id ? 'Update event' : 'Create event'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
+export default CalendarPage

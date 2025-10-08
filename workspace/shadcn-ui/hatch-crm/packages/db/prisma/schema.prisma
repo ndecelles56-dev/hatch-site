@@ -1,0 +1,1235 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  BROKER
+  TEAM_LEAD
+  AGENT
+  ISA
+  MARKETING
+  LENDER
+}
+
+enum PersonStage {
+  NEW
+  NURTURE
+  ACTIVE
+  UNDER_CONTRACT
+  CLOSED
+  LOST
+}
+
+enum ConsentChannel {
+  EMAIL
+  SMS
+  VOICE
+}
+
+enum ConsentScope {
+  PROMOTIONAL
+  TRANSACTIONAL
+}
+
+enum ConsentStatus {
+  GRANTED
+  REVOKED
+  UNKNOWN
+}
+
+enum ListingStatus {
+  COMING_SOON
+  ACTIVE
+  PENDING
+  CLOSED
+  WITHDRAWN
+}
+
+enum TourStatus {
+  REQUESTED
+  CONFIRMED
+  KEPT
+  NO_SHOW
+  CANCELLED
+}
+
+enum AgreementType {
+  BUYER_REP
+  LISTING
+}
+
+enum AgreementStatus {
+  DRAFT
+  SIGNED
+  EXPIRED
+}
+
+enum DealStage {
+  OFFER
+  UNDER_CONTRACT
+  CLOSED
+  LOST
+}
+
+enum OfferStatus {
+  SUBMITTED
+  COUNTERED
+  ACCEPTED
+  REJECTED
+}
+
+enum MessageChannel {
+  EMAIL
+  SMS
+  VOICE
+  IN_APP
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  BOUNCED
+  FAILED
+  BLOCKED
+  READ
+}
+
+enum ConversationType {
+  EXTERNAL
+  INTERNAL
+}
+
+enum ConversationParticipantRole {
+  OWNER
+  MEMBER
+  VIEWER
+}
+
+enum MessageReceiptStatus {
+  DELIVERED
+  READ
+}
+
+enum ActivityType {
+  LEAD_CREATED
+  CONSENT_CAPTURED
+  CONSENT_REVOKED
+  TOUR_REQUESTED
+  TOUR_CONFIRMED
+  TOUR_KEPT
+  AGREEMENT_SIGNED
+  DEAL_STAGE_CHANGED
+  MESSAGE_SENT
+  MESSAGE_READ
+  MESSAGE_FAILED
+  MESSAGE_BLOCKED
+  COMPLIANCE_VIOLATION
+  ROUTING_ASSIGNED
+  CONTACT_MERGE_PROPOSED
+  CONTACT_MERGED
+  CONTACT_EMAIL_CHANGED
+  CONTACT_PHONE_CHANGED
+  CONTACT_STAGE_CHANGED
+  CONTACT_OWNER_CHANGED
+  CONTACT_TAGS_CHANGED
+  CONTACT_DELETED
+  CONTACT_RESTORED
+  NOTE_ADDED
+  COMMISSION_PLAN_CREATED
+  COMMISSION_PLAN_UPDATED
+  COMMISSION_PLAN_ARCHIVED
+  COMMISSION_PLAN_ASSIGNED
+  COMMISSION_PLAN_ASSIGNMENT_ENDED
+  CAP_LEDGER_UPDATED
+}
+
+enum RoutingMode {
+  FIRST_MATCH
+  SCORE_AND_ASSIGN
+}
+
+enum LeadSlaType {
+  FIRST_TOUCH
+  KEPT_APPOINTMENT
+}
+
+enum OutboxStatus {
+  PENDING
+  DELIVERING
+  SUCCESS
+  FAILED
+}
+
+enum ContactSource {
+  MANUAL
+  CSV_IMPORT
+  PORTAL
+  OPEN_HOUSE
+  API
+  REFERRAL
+}
+
+enum BuyerRepStatus {
+  ACTIVE
+  NONE
+  EXPIRED
+}
+
+enum MergeStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum AssignmentReasonType {
+  CAPACITY
+  PERFORMANCE
+  GEOGRAPHY
+  PRICE_BAND
+  CONSENT
+  TEN_DLC
+  ROUND_ROBIN
+  TEAM_POND
+}
+
+enum CommissionPlanType {
+  FLAT
+  TIERED
+  CAP
+}
+
+enum PlanAssigneeType {
+  USER
+  TEAM
+}
+
+enum ClearCooperationStatus {
+  GREEN
+  YELLOW
+  RED
+}
+
+enum JourneyTrigger {
+  LEAD_CREATED
+  CONSENT_CAPTURED
+  TOUR_KEPT
+  DEAL_STAGE_CHANGED
+}
+
+enum JourneyActionType {
+  ASSIGN
+  SEND_MESSAGE
+  CREATE_TASK
+  UPDATE_STAGE
+}
+
+enum CalendarEventType {
+  SHOWING
+  MEETING
+  INSPECTION
+  CLOSING
+  FOLLOW_UP
+  MARKETING
+  OTHER
+}
+
+enum CalendarEventStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum CalendarEventPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tenants     Tenant[]
+  users       User[]
+  people      Person[]
+  teamMembers TeamMember[]
+}
+
+model Tenant {
+  id                    String                  @id @default(cuid())
+  organizationId        String
+  name                  String
+  slug                  String                  @unique
+  timezone              String                  @default("America/New_York")
+  quietHoursStart       Int                     @default(21) // 24h clock hour
+  quietHoursEnd         Int                     @default(8) // 24h clock hour
+  inAppRetentionMonths  Int                     @default(18)
+  tenDlcReady           Boolean                 @default(false)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  organization          Organization            @relation(fields: [organizationId], references: [id])
+  users                 User[]
+  teams                 Team[]
+  people                Person[]
+  listings              Listing[]
+  consents              Consent[]
+  tours                 Tour[]
+  agreements            Agreement[]
+  deliverabilityMetrics DeliverabilityMetric[]
+  quietHourOverrides    QuietHourOverride[]
+  routingLogs           RoutingLog[]
+  webhookSubscriptions  WebhookSubscription[]
+  personDocuments       PersonDocument[]
+  auditLogs             AuditLog[]
+  deals                 Deal[]
+  offers                Offer[]
+  mlsProfiles           MLSProfile[]
+  messages              Message[]
+  conversations         Conversation[]
+  activities            Activity[]
+  outboxEvents          Outbox[]
+  calendarEvents        CalendarEvent[]
+  assignments           Assignment[]
+  journeys              Journey[]
+  clearCooperation      ClearCooperationTimer[]
+  consentBlocks         CommunicationBlock[]
+  teamMembers           TeamMember[]
+  savedViews            SavedView[]
+  mergeProposals        ContactMergeProposal[]
+  disclaimerPolicies    DisclaimerPolicy[]
+  overrideLogs          OverrideLog[]
+  marketingEvents       MarketingEvent[]
+  complianceSnapshots   ComplianceStatusDaily[]
+  routingRules          RoutingRule[]
+  routeEvents           LeadRouteEvent[]
+  slaTimers             LeadSlaTimer[]
+  commissionPlans       CommissionPlan[]
+  planAssignments       PlanAssignment[]
+  capLedgers            CapLedger[]
+  planSnapshots         PlanSnapshot[]
+}
+
+model User {
+  id                      String                    @id @default(cuid())
+  organizationId          String
+  tenantId                String
+  email                   String                    @unique
+  firstName               String
+  lastName                String
+  role                    UserRole
+  avatarUrl               String?
+  timezone                String?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  organization            Organization              @relation(fields: [organizationId], references: [id])
+  tenant                  Tenant                    @relation(fields: [tenantId], references: [id])
+  memberships             TeamMembership[]
+  ownedPeople             Person[]                  @relation("PersonOwner")
+  commissionPlansCreated  CommissionPlan[]          @relation("CommissionPlanCreatedBy")
+  planAssignmentsCreated  PlanAssignment[]          @relation("PlanAssignmentCreatedBy")
+  planSnapshotsCreated    PlanSnapshot[]            @relation("PlanSnapshotCreatedBy")
+  capLedgers              CapLedger[]
+  tours                   Tour[]                    @relation("TourAgent")
+  messages                Message[]
+  createdConversations    Conversation[]            @relation("ConversationCreatedBy")
+  conversationMemberships ConversationParticipant[] @relation("ConversationParticipantUser")
+  assignments             Assignment[]
+  activities              Activity[]
+  calendarEvents          CalendarEvent[]           @relation("EventAssignedAgent")
+  actedConsents           Consent[]                 @relation("ConsentActor")
+  overrideAgreements      Agreement[]               @relation("AgreementOverride")
+  deliverabilityMetrics   DeliverabilityMetric[]
+  auditLogs               AuditLog[]
+  savedViews              SavedView[]
+  proposedMerges          ContactMergeProposal[]    @relation("MergeProposedBy")
+  resolvedMerges          ContactMergeProposal[]    @relation("MergeResolvedBy")
+  overrideEntries         OverrideLog[]             @relation("OverrideActor")
+  cooperationActions      ClearCooperationTimer[]   @relation("CooperationLastActor")
+  routingRulesCreated     RoutingRule[]             @relation("RoutingRuleCreatedBy")
+  routeEventsActor        LeadRouteEvent[]          @relation("RouteEventActor")
+}
+
+model Team {
+  id          String           @id @default(cuid())
+  tenantId    String
+  name        String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  members     TeamMembership[]
+  assignments Assignment[]
+}
+
+model TeamMembership {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId])
+}
+
+model TeamMember {
+  id                String        @id @default(uuid()) @map("id") @db.Uuid
+  tenantId          String        @map("tenant_id")
+  orgId             String?       @map("org_id")
+  name              String        @map("name")
+  email             String        @map("email")
+  phone             String?       @map("phone")
+  role              String        @default("Agent") @map("role")
+  status            String        @default("active") @map("status")
+  experienceYears   Int?          @map("experience_years")
+  rating            Float         @default(0) @map("rating")
+  totalSales        Int           @default(0) @map("total_sales")
+  dealsInProgress   Int           @default(0) @map("deals_in_progress")
+  openLeads         Int           @default(0) @map("open_leads")
+  responseTimeHours Float         @default(0) @map("response_time_hours")
+  joinedAt          DateTime      @default(now()) @map("joined_at")
+  lastActiveAt      DateTime      @default(now()) @map("last_active_at")
+  notes             String?       @map("notes")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  tenant            Tenant        @relation(fields: [tenantId], references: [id])
+  organization      Organization? @relation(fields: [orgId], references: [id])
+
+  @@index([tenantId])
+  @@index([orgId])
+  @@map("team_members")
+}
+
+model Person {
+  id                      String                    @id @default(cuid())
+  tenantId                String
+  organizationId          String
+  ownerId                 String?
+  firstName               String
+  lastName                String
+  primaryEmail            String?
+  secondaryEmails         String[]                  @default([])
+  primaryPhone            String?
+  secondaryPhones         String[]                  @default([])
+  stage                   PersonStage               @default(NEW)
+  tags                    String[]                  @default([])
+  source                  String?
+  address                 String?
+  leadScore               Float?
+  buyerRepStatus          BuyerRepStatus            @default(NONE)
+  doNotContact            Boolean                   @default(false)
+  lastActivityAt          DateTime?
+  preferredChannels       ConsentChannel[]          @default([])
+  deletedAt               DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  tenant                  Tenant                    @relation(fields: [tenantId], references: [id])
+  organization            Organization              @relation(fields: [organizationId], references: [id])
+  owner                   User?                     @relation("PersonOwner", fields: [ownerId], references: [id])
+  consents                Consent[]
+  listings                Listing[]                 @relation("PersonListings")
+  tours                   Tour[]
+  agreements              Agreement[]
+  deals                   Deal[]
+  offers                  Offer[]
+  messages                Message[]
+  conversations           Conversation[]            @relation("PersonConversations")
+  conversationMemberships ConversationParticipant[] @relation("ConversationParticipantPerson")
+  activities              Activity[]
+  assignments             Assignment[]
+  documents               PersonDocument[]
+  communicationBlocks     CommunicationBlock[]
+  quietHourOverrides      QuietHourOverride[]
+  routingLogs             RoutingLog[]
+  calendarEvents          CalendarEvent[]
+  mergeProposals          ContactMergeProposal[]    @relation("PersonMergeProposals")
+
+  @@unique([tenantId, primaryEmail])
+  @@unique([tenantId, primaryPhone])
+  @@index([tenantId, deletedAt])
+}
+
+model SavedView {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  name      String
+  filters   Json
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, name])
+}
+
+model ContactMergeProposal {
+  id                String      @id @default(cuid())
+  tenantId          String
+  existingPersonId  String
+  incomingPayload   Json
+  proposedByUserId  String
+  status            MergeStatus @default(PENDING)
+  resolutionPayload Json?
+  resolvedAt        DateTime?
+  resolvedByUserId  String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  tenant         Tenant @relation(fields: [tenantId], references: [id])
+  existingPerson Person @relation("PersonMergeProposals", fields: [existingPersonId], references: [id])
+  proposedBy     User   @relation("MergeProposedBy", fields: [proposedByUserId], references: [id])
+  resolvedBy     User?  @relation("MergeResolvedBy", fields: [resolvedByUserId], references: [id])
+
+  @@index([tenantId, status])
+}
+
+model Consent {
+  id           String         @id @default(cuid())
+  tenantId     String
+  personId     String
+  channel      ConsentChannel
+  scope        ConsentScope
+  status       ConsentStatus  @default(GRANTED)
+  verbatimText String
+  source       String
+  ipAddress    String?
+  userAgent    String?
+  evidenceUri  String?
+  capturedAt   DateTime       @default(now())
+  revokedAt    DateTime?
+  actorUserId  String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  person       Person         @relation(fields: [personId], references: [id])
+  actor        User?          @relation("ConsentActor", fields: [actorUserId], references: [id])
+
+  @@index([personId, channel, scope])
+}
+
+model Listing {
+  id              String                 @id @default(cuid())
+  tenantId        String
+  personId        String?
+  mlsId           String?
+  status          ListingStatus          @default(COMING_SOON)
+  addressLine1    String
+  addressLine2    String?
+  city            String
+  state           String
+  postalCode      String
+  country         String                 @default("USA")
+  latitude        Float?
+  longitude       Float?
+  price           Decimal?
+  beds            Int?
+  baths           Float?
+  propertyType    String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id])
+  person          Person?                @relation("PersonListings", fields: [personId], references: [id])
+  tours           Tour[]
+  deals           Deal[]
+  offers          Offer[]
+  calendarEvents  CalendarEvent[]
+  clearCoopTimer  ClearCooperationTimer? @relation("ListingTimer")
+  activities      Activity[]
+  marketingEvents MarketingEvent[]
+}
+
+model CalendarEvent {
+  id              String                @id @default(cuid())
+  tenantId        String
+  title           String
+  description     String?
+  startAt         DateTime
+  endAt           DateTime
+  eventType       CalendarEventType     @default(OTHER)
+  status          CalendarEventStatus   @default(PENDING)
+  priority        CalendarEventPriority @default(MEDIUM)
+  location        String?
+  notes           String?
+  assignedAgentId String?
+  personId        String?
+  listingId       String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  assignedAgent User?    @relation("EventAssignedAgent", fields: [assignedAgentId], references: [id])
+  person        Person?  @relation(fields: [personId], references: [id])
+  listing       Listing? @relation(fields: [listingId], references: [id])
+
+  @@index([tenantId, startAt])
+  @@index([assignedAgentId])
+  @@index([personId])
+}
+
+model Tour {
+  id            String             @id @default(cuid())
+  tenantId      String
+  personId      String
+  listingId     String
+  agentId       String?
+  status        TourStatus         @default(REQUESTED)
+  startAt       DateTime
+  endAt         DateTime
+  source        String?
+  routingScore  Float?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  tenant        Tenant             @relation(fields: [tenantId], references: [id])
+  person        Person             @relation(fields: [personId], references: [id])
+  listing       Listing            @relation(fields: [listingId], references: [id])
+  agent         User?              @relation("TourAgent", fields: [agentId], references: [id])
+  agreementLink TourAgreementLink?
+  activities    Activity[]
+}
+
+model Agreement {
+  id             String              @id @default(cuid())
+  tenantId       String
+  personId       String
+  type           AgreementType
+  status         AgreementStatus     @default(DRAFT)
+  effectiveDate  DateTime?
+  expiryDate     DateTime?
+  version        Int                 @default(1)
+  documentUri    String?
+  signatureLog   Json?
+  signedAt       DateTime?
+  overrideUserId String?
+  overrideReason String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
+  person         Person              @relation(fields: [personId], references: [id])
+  overrideUser   User?               @relation("AgreementOverride", fields: [overrideUserId], references: [id])
+  deals          Deal[]
+  tourLinks      TourAgreementLink[]
+  activities     Activity[]
+
+  @@index([personId, type, status])
+}
+
+model Deal {
+  id           String     @id @default(cuid())
+  tenantId     String
+  personId     String
+  listingId    String?
+  agreementId  String?
+  stage        DealStage  @default(OFFER)
+  forecastGci  Decimal?
+  actualGci    Decimal?
+  splitPlanRef String?
+  spendToDate  Decimal?   @default(0)
+  expectedNet  Decimal?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  person       Person     @relation(fields: [personId], references: [id])
+  listing      Listing?   @relation(fields: [listingId], references: [id])
+  agreement    Agreement? @relation(fields: [agreementId], references: [id])
+  offers       Offer[]
+  activities   Activity[]
+}
+
+model Offer {
+  id        String      @id @default(cuid())
+  tenantId  String
+  listingId String
+  personId  String
+  dealId    String?
+  status    OfferStatus @default(SUBMITTED)
+  terms     Json
+  version   Int         @default(1)
+  metadata  Json?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  listing   Listing     @relation(fields: [listingId], references: [id])
+  person    Person      @relation(fields: [personId], references: [id])
+  deal      Deal?       @relation(fields: [dealId], references: [id])
+}
+
+model MLSProfile {
+  id                       String                  @id @default(cuid())
+  tenantId                 String
+  name                     String
+  disclaimerText           String
+  compensationDisplayRule  String
+  requiredPlacement        String?                 @default("footer")
+  prohibitedFields         Json?
+  clearCooperationRequired Boolean                 @default(true)
+  slaHours                 Int                     @default(72)
+  lastReviewedAt           DateTime?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  tenant                   Tenant                  @relation(fields: [tenantId], references: [id])
+  cooperationTimers        ClearCooperationTimer[]
+  disclaimerPolicies       DisclaimerPolicy[]
+  marketingEvents          MarketingEvent[]
+}
+
+model TourAgreementLink {
+  tourId      String    @id
+  agreementId String
+  linkedAt    DateTime  @default(now())
+  tour        Tour      @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  agreement   Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+
+  @@index([agreementId])
+}
+
+model DisclaimerPolicy {
+  id                String     @id @default(cuid())
+  tenantId          String
+  mlsProfileId      String
+  requiredText      String
+  requiredPlacement String
+  compensationRule  String
+  lastReviewedAt    DateTime   @default(now())
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  tenant            Tenant     @relation(fields: [tenantId], references: [id])
+  mlsProfile        MLSProfile @relation(fields: [mlsProfileId], references: [id])
+
+  @@index([tenantId, mlsProfileId])
+}
+
+model OverrideLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  actorUserId String?
+  context     String
+  reasonText  String?
+  metadata    Json?
+  occurredAt  DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  actor       User?    @relation("OverrideActor", fields: [actorUserId], references: [id])
+
+  @@index([tenantId, context])
+}
+
+model MarketingEvent {
+  id           String      @id @default(cuid())
+  tenantId     String
+  listingId    String?
+  mlsProfileId String?
+  eventType    String
+  occurredAt   DateTime    @default(now())
+  result       String?
+  metadata     Json?
+  tenant       Tenant      @relation(fields: [tenantId], references: [id])
+  listing      Listing?    @relation(fields: [listingId], references: [id])
+  mlsProfile   MLSProfile? @relation(fields: [mlsProfileId], references: [id])
+
+  @@index([tenantId, occurredAt])
+  @@index([listingId])
+  @@index([mlsProfileId])
+}
+
+model ComplianceStatusDaily {
+  id                String   @id @default(cuid())
+  tenantId          String
+  date              DateTime
+  teamId            String?
+  agentId           String?
+  toursTotal        Int      @default(0)
+  toursKept         Int      @default(0)
+  keptWithActiveBba Int      @default(0)
+  smsGranted        Int      @default(0)
+  smsRevoked        Int      @default(0)
+  emailGranted      Int      @default(0)
+  emailRevoked      Int      @default(0)
+  coopOpen          Int      @default(0)
+  coopOverdue       Int      @default(0)
+  idxFailures       Int      @default(0)
+  idxChecks         Int      @default(0)
+  tenDlcApproved    Boolean  @default(false)
+  dmarcAligned      Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, date, teamId, agentId])
+}
+
+model CommissionPlan {
+  id          String             @id @default(cuid())
+  tenantId    String
+  name        String
+  type        CommissionPlanType
+  description String?
+  definition  Json
+  postCapFee  Json?
+  bonusRules  Json?
+  isArchived  Boolean            @default(false)
+  version     Int                @default(1)
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  createdBy   User?              @relation("CommissionPlanCreatedBy", fields: [createdById], references: [id])
+  assignments PlanAssignment[]
+  snapshots   PlanSnapshot[]
+  capLedgers  CapLedger[]
+
+  @@unique([tenantId, name, version])
+  @@index([tenantId, isArchived])
+}
+
+model PlanAssignment {
+  id            String           @id @default(cuid())
+  tenantId      String
+  assigneeType  PlanAssigneeType
+  assigneeId    String
+  planId        String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  priority      Int              @default(0)
+  createdById   String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  plan          CommissionPlan   @relation(fields: [planId], references: [id])
+  createdBy     User?            @relation("PlanAssignmentCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([tenantId, assigneeType, assigneeId, planId, effectiveFrom])
+  @@index([tenantId, assigneeType, assigneeId, effectiveFrom])
+}
+
+model CapLedger {
+  id               String         @id @default(cuid())
+  tenantId         String
+  userId           String
+  planId           String
+  periodStart      DateTime
+  periodEnd        DateTime
+  capAmount        Decimal        @db.Decimal(12, 2)
+  companyDollarYtd Decimal        @default(0) @db.Decimal(12, 2)
+  postCapFeesYtd   Decimal        @default(0) @db.Decimal(12, 2)
+  lastDealId       String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tenant           Tenant         @relation(fields: [tenantId], references: [id])
+  user             User           @relation(fields: [userId], references: [id])
+  plan             CommissionPlan @relation(fields: [planId], references: [id])
+
+  @@unique([tenantId, userId, planId, periodStart])
+  @@index([tenantId, userId, planId, periodStart, periodEnd])
+}
+
+model PlanSnapshot {
+  id          String         @id @default(cuid())
+  tenantId    String
+  planId      String
+  version     Int
+  payload     Json
+  createdAt   DateTime       @default(now())
+  createdById String?
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  plan        CommissionPlan @relation(fields: [planId], references: [id])
+  createdBy   User?          @relation("PlanSnapshotCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([planId, version])
+  @@index([tenantId, planId, version])
+}
+
+model RoutingRule {
+  id                        String           @id @default(cuid())
+  tenantId                  String
+  name                      String
+  priority                  Int              @default(0)
+  mode                      RoutingMode      @default(FIRST_MATCH)
+  enabled                   Boolean          @default(true)
+  conditions                Json
+  targets                   Json
+  fallback                  Json?
+  slaFirstTouchMinutes      Int?
+  slaKeptAppointmentMinutes Int?
+  createdById               String?
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+  tenant                    Tenant           @relation(fields: [tenantId], references: [id])
+  createdBy                 User?            @relation("RoutingRuleCreatedBy", fields: [createdById], references: [id])
+  routeEvents               LeadRouteEvent[]
+  slaTimers                 LeadSlaTimer[]
+
+  @@index([tenantId, priority])
+}
+
+model LeadRouteEvent {
+  id              String       @id @default(cuid())
+  tenantId        String
+  leadId          String
+  personId        String?
+  matchedRuleId   String?
+  mode            RoutingMode
+  payload         Json
+  candidates      Json
+  assignedAgentId String?
+  fallbackUsed    Boolean      @default(false)
+  reasonCodes     Json?
+  slaDueAt        DateTime?
+  slaSatisfiedAt  DateTime?
+  slaBreachedAt   DateTime?
+  actorUserId     String?
+  createdAt       DateTime     @default(now())
+  tenant          Tenant       @relation(fields: [tenantId], references: [id])
+  rule            RoutingRule? @relation(fields: [matchedRuleId], references: [id])
+  actor           User?        @relation("RouteEventActor", fields: [actorUserId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, leadId])
+}
+
+model LeadSlaTimer {
+  id              String       @id @default(cuid())
+  tenantId        String
+  leadId          String
+  assignedAgentId String?
+  ruleId          String?
+  type            LeadSlaType  @default(FIRST_TOUCH)
+  status          String       @default("PENDING")
+  dueAt           DateTime
+  satisfiedAt     DateTime?
+  breachedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  tenant          Tenant       @relation(fields: [tenantId], references: [id])
+  rule            RoutingRule? @relation(fields: [ruleId], references: [id])
+
+  @@index([tenantId, leadId])
+  @@index([tenantId, status])
+}
+
+model Message {
+  id                String              @id @default(cuid())
+  tenantId          String
+  personId          String?
+  userId            String?
+  conversationId    String?
+  channel           MessageChannel
+  direction         MessageDirection
+  subject           String?
+  body              String?
+  toAddress         String?
+  fromAddress       String?
+  status            MessageStatus       @default(QUEUED)
+  errorCode         String?
+  errorMessage      String?
+  metadata          Json?
+  deliveredAt       DateTime?
+  providerMessageId String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  tenant            Tenant              @relation(fields: [tenantId], references: [id])
+  person            Person?             @relation(fields: [personId], references: [id])
+  user              User?               @relation(fields: [userId], references: [id])
+  conversation      Conversation?       @relation(fields: [conversationId], references: [id])
+  attachments       MessageAttachment[]
+  receipts          MessageReceipt[]
+
+  @@index([conversationId])
+}
+
+model Conversation {
+  id           String                    @id @default(cuid())
+  tenantId     String
+  type         ConversationType
+  personId     String?
+  createdById  String
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  archivedAt   DateTime?
+  tenant       Tenant                    @relation(fields: [tenantId], references: [id])
+  person       Person?                   @relation("PersonConversations", fields: [personId], references: [id])
+  createdBy    User                      @relation("ConversationCreatedBy", fields: [createdById], references: [id])
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([tenantId, type])
+  @@index([tenantId, personId])
+  @@index([tenantId, updatedAt])
+}
+
+model ConversationParticipant {
+  id             String                      @id @default(cuid())
+  conversationId String
+  userId         String?
+  personId       String?
+  role           ConversationParticipantRole @default(MEMBER)
+  joinedAt       DateTime                    @default(now())
+  muted          Boolean                     @default(false)
+  lastReadAt     DateTime?
+  conversation   Conversation                @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User?                       @relation("ConversationParticipantUser", fields: [userId], references: [id])
+  person         Person?                     @relation("ConversationParticipantPerson", fields: [personId], references: [id])
+  receipts       MessageReceipt[]
+
+  @@index([conversationId, role])
+  @@index([conversationId, userId])
+  @@index([conversationId, personId])
+}
+
+model MessageReceipt {
+  id            String                  @id @default(cuid())
+  messageId     String
+  participantId String
+  status        MessageReceiptStatus
+  recordedAt    DateTime                @default(now())
+  message       Message                 @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  participant   ConversationParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, participantId, status])
+  @@index([participantId, status])
+}
+
+model MessageAttachment {
+  id         String   @id @default(cuid())
+  messageId  String
+  filename   String
+  mimeType   String
+  size       Int
+  storageKey String
+  checksum   String?
+  scanned    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([checksum])
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  tenantId    String
+  personId    String?
+  userId      String?
+  dealId      String?
+  tourId      String?
+  agreementId String?
+  listingId   String?
+  type        ActivityType
+  payload     Json
+  occurredAt  DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  person      Person?      @relation(fields: [personId], references: [id])
+  user        User?        @relation(fields: [userId], references: [id])
+  deal        Deal?        @relation(fields: [dealId], references: [id])
+  tour        Tour?        @relation(fields: [tourId], references: [id])
+  agreement   Agreement?   @relation(fields: [agreementId], references: [id])
+  listing     Listing?     @relation(fields: [listingId], references: [id])
+}
+
+model Outbox {
+  id          String            @id @default(cuid())
+  tenantId    String
+  eventType   String
+  payload     Json
+  status      OutboxStatus      @default(PENDING)
+  attempts    Int               @default(0)
+  lastError   String?
+  lockedAt    DateTime?
+  nextRetryAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  deliveries  WebhookDelivery[]
+}
+
+model Assignment {
+  id         String             @id @default(cuid())
+  tenantId   String
+  personId   String
+  agentId    String?
+  teamId     String?
+  score      Float
+  reasons    AssignmentReason[]
+  assignedAt DateTime           @default(now())
+  expiresAt  DateTime?
+  createdAt  DateTime           @default(now())
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  person     Person             @relation(fields: [personId], references: [id])
+  agent      User?              @relation(fields: [agentId], references: [id])
+  team       Team?              @relation(fields: [teamId], references: [id])
+}
+
+model AssignmentReason {
+  id           String               @id @default(cuid())
+  assignmentId String
+  type         AssignmentReasonType
+  weight       Float
+  notes        String?
+  assignment   Assignment           @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+}
+
+model Journey {
+  id          String              @id @default(cuid())
+  tenantId    String
+  name        String
+  trigger     JourneyTrigger
+  isActive    Boolean             @default(true)
+  definition  Json // conditions + actions structure
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  simulations JourneySimulation[]
+}
+
+model JourneySimulation {
+  id        String   @id @default(cuid())
+  journeyId String
+  input     Json
+  result    Json
+  createdAt DateTime @default(now())
+  journey   Journey  @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+}
+
+model CommunicationBlock {
+  id        String         @id @default(cuid())
+  tenantId  String
+  personId  String?
+  channel   ConsentChannel
+  scope     ConsentScope?
+  reason    String
+  createdAt DateTime       @default(now())
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  person    Person?        @relation(fields: [personId], references: [id])
+
+  @@index([personId, channel])
+}
+
+model ClearCooperationTimer {
+  id                     String                 @id @default(cuid())
+  tenantId               String
+  listingId              String?                @unique
+  mlsProfileId           String?
+  status                 ClearCooperationStatus @default(GREEN)
+  startedAt              DateTime               @default(now())
+  firstPublicMarketingAt DateTime?
+  deadlineAt             DateTime?
+  dueAt                  DateTime?
+  lastEventAt            DateTime?
+  riskReason             String?
+  lastAction             String?
+  lastActorId            String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  tenant                 Tenant                 @relation(fields: [tenantId], references: [id])
+  listing                Listing?               @relation("ListingTimer", fields: [listingId], references: [id])
+  mlsProfile             MLSProfile?            @relation(fields: [mlsProfileId], references: [id])
+  lastActor              User?                  @relation("CooperationLastActor", fields: [lastActorId], references: [id])
+}
+
+model PersonDocument {
+  id        String   @id @default(cuid())
+  personId  String
+  tenantId  String
+  type      String
+  url       String
+  createdAt DateTime @default(now())
+  metadata  Json?
+  person    Person   @relation(fields: [personId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  actorUserId String?
+  entityType  String
+  entityId    String
+  action      String
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+}
+
+model DeliverabilityMetric {
+  id          String         @id @default(cuid())
+  tenantId    String
+  campaignRef String?
+  agentId     String?
+  channel     MessageChannel
+  accepted    Int            @default(0)
+  delivered   Int            @default(0)
+  bounced     Int            @default(0)
+  complaints  Int            @default(0)
+  optOuts     Int            @default(0)
+  recordedAt  DateTime       @default(now())
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  agent       User?          @relation(fields: [agentId], references: [id])
+
+  @@unique([tenantId, agentId, channel, recordedAt])
+}
+
+model QuietHourOverride {
+  id         String         @id @default(cuid())
+  tenantId   String
+  personId   String?
+  channel    ConsentChannel
+  reason     String
+  validUntil DateTime
+  createdAt  DateTime       @default(now())
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  person     Person?        @relation(fields: [personId], references: [id])
+}
+
+model RoutingLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  personId  String
+  payload   Json
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  person    Person   @relation(fields: [personId], references: [id])
+}
+
+model WebhookSubscription {
+  id         String            @id @default(cuid())
+  tenantId   String
+  name       String
+  url        String
+  secret     String
+  isActive   Boolean           @default(true)
+  eventTypes String[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id          String              @id @default(cuid())
+  webhookId   String
+  outboxId    String
+  status      OutboxStatus        @default(PENDING)
+  attempts    Int                 @default(0)
+  lastError   String?
+  deliveredAt DateTime?
+  createdAt   DateTime            @default(now())
+  webhook     WebhookSubscription @relation(fields: [webhookId], references: [id])
+  outbox      Outbox              @relation(fields: [outboxId], references: [id])
+}

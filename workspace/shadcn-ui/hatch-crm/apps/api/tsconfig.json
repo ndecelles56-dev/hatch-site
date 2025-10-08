@@ -1,0 +1,43 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "declaration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "baseUrl": "./",
+    "paths": {
+      "@hatch/db": [
+        "../../packages/db/src"
+      ],
+      "@hatch/shared": [
+        "../../packages/shared/src/index"
+      ],
+      "@hatch/shared/*": [
+        "../../packages/shared/src/*"
+      ],
+      "@hatch/config": [
+        "../../packages/config/src"
+      ],
+      "@app/*": [
+        "src/*"
+      ]
+    },
+    "lib": [
+      "ES2022",
+      "DOM"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

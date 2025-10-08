@@ -1,0 +1,41 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hatch
+      POSTGRES_PASSWORD: hatch
+      POSTGRES_DB: hatch_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+  minio:
+    image: minio/minio:RELEASE.2024-08-17T01-24-54Z
+    restart: unless-stopped
+    environment:
+      MINIO_ACCESS_KEY: hatch
+      MINIO_SECRET_KEY: hatch-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+volumes:
+  postgres-data:
+  minio-data:

@@ -653,6 +653,7 @@ export default function DraftListings() {
   const handleDelete = async (id: string) => {
     try {
       await deleteProperty(id)
+      setSelectedListings((prev) => prev.filter((selectedId) => selectedId !== id))
       toast({
         title: 'Draft deleted',
         description: 'The draft listing has been removed.',
@@ -665,6 +666,25 @@ export default function DraftListings() {
         description: 'Please try again shortly.',
         variant: 'destructive',
       })
+    }
+  }
+
+  const IMPORT_TIMEOUT_MS = 45000
+
+  async function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error('import_timeout'))
+      }, timeoutMs)
+    })
+
+    try {
+      return await Promise.race([promise, timeoutPromise])
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
     }
   }
 
@@ -1439,8 +1459,13 @@ export default function DraftListings() {
     }
     
     setIsImportingDrafts(true)
+
     try {
-      const { created, duplicates } = await addDraftProperties(convertedProperties)
+      const { created, duplicates, warnings } = await runWithTimeout(
+        addDraftProperties(convertedProperties),
+        IMPORT_TIMEOUT_MS
+      )
+
       setShowBulkUpload(false)
 
       if (created.length > 0) {
@@ -1470,6 +1495,40 @@ export default function DraftListings() {
           variant: 'destructive',
         })
       }
+
+      if (warnings?.timeouts || warnings?.failures) {
+        const parts: string[] = []
+        if (warnings.timeouts) {
+          parts.push(`${warnings.timeouts} listing${warnings.timeouts === 1 ? '' : 's'} timed out`)
+        }
+        if (warnings.failures) {
+          parts.push(`${warnings.failures} listing${warnings.failures === 1 ? '' : 's'} failed to reach Supabase`)
+        }
+
+        toast({
+          title: 'Import completed with warnings',
+          description: `${parts.join(' and ')}. They remain saved locally—retry once your connection stabilizes.`,
+          variant: 'info',
+        })
+      }
+    } catch (error) {
+      console.error('Failed to import draft listings', error)
+
+      const message = (() => {
+        if (error instanceof Error) {
+          if (error.message === 'import_timeout') {
+            return 'Import is taking longer than expected. Please check your network connection and try again.'
+          }
+          return error.message
+        }
+        return 'An unexpected error occurred while importing listings.'
+      })()
+
+      toast({
+        title: 'Import failed',
+        description: message,
+        variant: 'destructive',
+      })
     } finally {
       setIsImportingDrafts(false)
     }
@@ -1516,11 +1575,31 @@ export default function DraftListings() {
   }
 
   const confirmBulkDelete = async () => {
-    for (const id of selectedListings) {
-      await deleteProperty(id)
+    if (selectedListings.length === 0) {
+      setShowBulkDeleteConfirm(false)
+      return
     }
-    setSelectedListings([])
+
+    const idsToDelete = [...selectedListings]
+    const results = await Promise.allSettled(idsToDelete.map((id) => deleteProperty(id)))
+    const failed = idsToDelete.filter((_, index) => results[index].status === 'rejected')
+
+    setSelectedListings((prev) => prev.filter((id) => failed.includes(id)))
     setShowBulkDeleteConfirm(false)
+
+    if (failed.length === 0) {
+      toast({
+        title: 'Drafts deleted',
+        description: `${idsToDelete.length} draft${idsToDelete.length === 1 ? '' : 's'} removed.`,
+        variant: 'info',
+      })
+    } else {
+      toast({
+        title: 'Some drafts could not be deleted',
+        description: `${failed.length} draft${failed.length === 1 ? '' : 's'} still need attention. Try again or refresh.`,
+        variant: 'destructive',
+      })
+    }
   }
 
   const isAllSelected = filteredDraftListings.length > 0 && filteredDraftListings.every(listing => selectedListings.includes(listing.id))

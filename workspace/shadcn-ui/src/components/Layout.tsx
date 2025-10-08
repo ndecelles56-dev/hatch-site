@@ -42,7 +42,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const brokerNavItems = [
     { name: 'Dashboard', href: '/', icon: Home },
     { name: 'Properties', href: '/properties', icon: Search },
-    { name: 'CRM', href: '/crm', icon: Users },
+    { name: 'CRM', href: '/broker/crm', icon: Users },
     { name: 'Transactions', href: '/transactions', icon: FileText },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Education', href: '/education', icon: BookOpen },

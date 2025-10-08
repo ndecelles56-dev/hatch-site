@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { BrokerProvider } from './contexts/BrokerContext'
+import { MessengerProvider } from './contexts/MessengerContext'
 import { CustomerExperienceProvider } from './contexts/CustomerExperienceContext'
 import { Toaster } from '@/components/ui/toaster'
 
@@ -21,9 +22,13 @@ import BrokerTeam from './pages/broker/Team'
 import BrokerTeamAdvanced from './pages/broker/TeamAdvanced'
 import BrokerCalendar from './pages/broker/Calendar'
 import BrokerAnalytics from './pages/broker/Analytics'
+import CommissionPlansPage from './pages/broker/CommissionPlans'
+import LeadRoutingDesk from './pages/broker/LeadRoutingDesk'
 import DraftListingsPage from './pages/broker/DraftListings'
 import Pricing from './pages/broker/Pricing'
 import Payment from './pages/broker/Payment'
+import ComplianceCenter from './pages/broker/Compliance'
+import Messages from './pages/Messages'
 
 // Customer Pages
 import CustomerDashboard from './pages/customer/Dashboard'
@@ -42,10 +47,11 @@ function App() {
     <AuthProvider>
       <CustomerExperienceProvider>
         <BrokerProvider>
-          <Router>
-            <div className="App">
-              <Toaster />
-              <Routes>
+          <MessengerProvider>
+            <Router>
+              <div className="App">
+                <Toaster />
+                <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Home />} />
                 <Route path="/home" element={<Home />} />
@@ -57,12 +63,16 @@ function App() {
                 {/* Broker Routes with Layout */}
                 <Route path="/broker" element={<BrokerLayout />}>
                   <Route path="dashboard" element={<BrokerDashboard />} />
+                  <Route path="crm" element={<CRM />} />
                   <Route path="properties" element={<BrokerProperties />} />
                   <Route path="leads" element={<BrokerLeads />} />
                   <Route path="team" element={<BrokerTeam />} />
+                  <Route path="compliance" element={<ComplianceCenter />} />
                   <Route path="team-advanced" element={<BrokerTeamAdvanced />} />
                   <Route path="calendar" element={<BrokerCalendar />} />
                   <Route path="analytics" element={<BrokerAnalytics />} />
+                  <Route path="commission-plans" element={<CommissionPlansPage />} />
+                  <Route path="lead-routing" element={<LeadRoutingDesk />} />
                   <Route path="draft-listings" element={<DraftListingsPage />} />
                   <Route path="pricing" element={<Pricing />} />
                   <Route path="payment" element={<Payment />} />
@@ -80,13 +90,16 @@ function App() {
                 <Route path="/customer/property/:id" element={<CustomerPropertyDetail />} />
 
                 {/* CRM */}
-                <Route path="/crm" element={<CRM />} />
+                <Route path="/crm" element={<Navigate to="/broker/crm" replace />} />
+
+                <Route path="/messages" element={<Messages />} />
 
                 {/* Default redirect */}
                 <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </div>
-          </Router>
+                </Routes>
+              </div>
+            </Router>
+          </MessengerProvider>
         </BrokerProvider>
       </CustomerExperienceProvider>
     </AuthProvider>

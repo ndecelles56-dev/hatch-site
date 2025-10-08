@@ -24,26 +24,20 @@ export default function Login() {
     }
   }, [loading, navigate, user])
 
-  const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (submitting) return
     setError(null)
     setSubmitting(true)
 
-    try {
-      console.log('[Login] attempting sign-in')
-      await signIn(email, password)
-      console.log('[Login] sign-in successful, navigating')
-      setSubmitting(false)
-      navigate('/broker/dashboard', { replace: true })
-    } catch (authError) {
+    console.log('[Login] attempting sign-in')
+    signIn(email, password).catch((authError) => {
       const message = authError instanceof Error ? authError.message : 'Unable to sign in. Please try again.'
       setError(message)
       console.error('[Login] sign-in failed', authError)
-    } finally {
-      console.log('[Login] reset submitting state')
       setSubmitting(false)
-    }
-  }, [email, password, signIn, navigate])
+    })
+  }, [email, password, signIn, submitting])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">

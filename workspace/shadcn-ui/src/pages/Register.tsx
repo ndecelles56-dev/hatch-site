@@ -9,6 +9,7 @@ import { Home as HomeIcon, UserPlus, Mail, Lock, User, Building2 } from 'lucide-
 import { supabase } from '@/lib/api/client'
 import { getRedirectUrl } from '@/utils/url'
 import { useAuth } from '@/contexts/AuthContext'
+import { HatchLogo } from '@/components/HatchLogo'
 
 type FormDataState = {
   firstName: string
@@ -153,8 +154,8 @@ export default function Register() {
             onClick={() => navigate('/')}
             className="flex items-center text-blue-600 hover:text-blue-700"
           >
-            <HomeIcon className="h-6 w-6 mr-2" />
-            <span className="text-xl font-bold">Hatch</span>
+            <HomeIcon className="h-5 w-5 mr-2" />
+            <HatchLogo className="h-7" />
           </Button>
         </div>
         <h2 className="text-center text-3xl font-bold text-gray-900">

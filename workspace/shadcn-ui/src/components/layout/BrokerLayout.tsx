@@ -2,9 +2,10 @@ import React, { useMemo } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import BrokerSidebar from './BrokerSidebar'
 import { Button } from '@/components/ui/button'
-import { Home, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveUserIdentity } from '@/lib/utils'
+import { HatchLogo } from '@/components/HatchLogo'
 
 interface BrokerLayoutProps {
   showBackButton?: boolean
@@ -27,8 +28,8 @@ export default function BrokerLayout({ showBackButton = false }: BrokerLayoutPro
         <header className="bg-white shadow-sm border-b px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <Home className="h-6 w-6 text-blue-600 mr-2" />
-              <h1 className="text-xl font-semibold text-gray-900">Hatch Broker Portal</h1>
+              <HatchLogo className="h-7" />
+              <span className="ml-3 text-xl font-semibold text-gray-900">Broker Portal</span>
             </div>
             
             {/* Public Site Navigation */}

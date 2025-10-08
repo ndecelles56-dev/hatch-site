@@ -13,6 +13,13 @@ import {
   type BrokerPropertyRow,
   type PromoteDraftPayload,
 } from '@/lib/api/properties'
+import {
+  createTeamMember as createTeamMemberApi,
+  deleteTeamMember as deleteTeamMemberApi,
+  listTeamMembers,
+  updateTeamMemberApi,
+  type TeamMemberRecord
+} from '@/lib/api/hatch'
 
 // Types for the broker context
 interface Lead {
@@ -27,6 +34,65 @@ interface Lead {
   notes?: string
 }
 
+interface TeamMember {
+  id: string
+  tenantId: string
+  orgId?: string
+  name: string
+  email: string
+  phone?: string
+  role: string
+  status: 'active' | 'inactive' | 'pending'
+  experienceYears?: number
+  rating: number
+  totalSales: number
+  dealsInProgress: number
+  openLeads: number
+  responseTimeHours: number
+  joinedAt: string
+  lastActiveAt: string
+  notes?: string
+}
+
+interface TeamSummary {
+  totalMembers: number
+  activeMembers: number
+  inactiveMembers: number
+  pendingMembers: number
+  averageRating: number
+  totalSales: number
+}
+
+interface TeamPerformance {
+  name: string
+  role: string
+  status: TeamMember['status']
+  rating: number
+  totalSales: number
+  dealsInProgress: number
+  openLeads: number
+  responseTimeHours: number
+  experienceYears?: number
+  joinedAt: string
+  lastActiveAt: string
+  notes?: string
+}
+
+type CreateTeamMemberInput = {
+  name: string
+  email: string
+  phone?: string
+  role: string
+  status?: TeamMember['status']
+  experienceYears?: number
+  rating?: number
+  totalSales?: number
+  dealsInProgress?: number
+  openLeads?: number
+  responseTimeHours?: number
+  notes?: string
+}
+
 interface DuplicateDraftNotice {
   mlsNumber?: string
   address?: string
@@ -34,9 +100,15 @@ interface DuplicateDraftNotice {
   reason: 'existing' | 'batch_duplicate'
 }
 
+interface DraftImportWarnings {
+  timeouts?: number
+  failures?: number
+}
+
 interface DraftImportResult {
   created: MLSProperty[]
   duplicates: DuplicateDraftNotice[]
+  warnings?: DraftImportWarnings
 }
 
 interface Property {
@@ -78,6 +150,17 @@ interface BrokerContextType {
   updateLead: (id: string, updates: Partial<Lead>) => void
   deleteLead: (id: string) => void
   
+  // Team
+  teamMembers: TeamMember[]
+  teamMembersLoading: boolean
+  teamMembersError: string | null
+  refreshTeamMembers: () => Promise<void>
+  addTeamMember: (member: CreateTeamMemberInput) => Promise<TeamMember>
+  updateTeamMember: (id: string, updates: Partial<TeamMember>) => Promise<TeamMember>
+  removeTeamMember: (id: string) => Promise<void>
+  getTeamSummary: () => TeamSummary
+  getMemberPerformance: (id: string) => TeamPerformance | null
+
   // Analytics
   getAnalytics: () => {
     totalProperties: number
@@ -94,18 +177,21 @@ const BrokerContext = createContext<BrokerContextType | undefined>(undefined)
 const STORAGE_KEYS = {
   properties: 'broker_properties_demo_broker_1',
   draftProperties: 'broker_draft_properties_demo_broker_1',
-  leads: 'broker_leads_demo_broker_1'
+  leads: 'broker_leads_demo_broker_1',
+  teamMembers: 'broker_team_members_demo_broker_1'
 }
 
 // Storage size limits (in characters)
 const STORAGE_LIMITS = {
   properties: 500000, // ~500KB
   draftProperties: 1000000, // ~1MB
-  leads: 200000 // ~200KB
+  leads: 200000, // ~200KB
+  teamMembers: 200000
 }
 
 const FALLBACK_DEMO_USER_ID = 'demo_broker_1'
 const FALLBACK_DEMO_FIRM_ID = '550e8400-e29b-41d4-a716-446655440001'
+const FALLBACK_TENANT_ID = import.meta.env.VITE_TENANT_ID || 'tenant-hatch'
 
 // Helper function to safely store data with size checks
 const safeSetItem = (key: string, data: Record<string, unknown>[], limit: number) => {
@@ -204,6 +290,26 @@ const safeProcessPhotos = (photoData: unknown): string[] => {
 
   return []
 }
+
+const normaliseTeamMemberRecord = (record: TeamMemberRecord): TeamMember => ({
+  id: record.id,
+  tenantId: record.tenantId,
+  orgId: record.orgId ?? undefined,
+  name: record.name,
+  email: record.email,
+  phone: record.phone ?? undefined,
+  role: record.role,
+  status: record.status,
+  experienceYears: record.experienceYears ?? undefined,
+  rating: Number(record.rating ?? 0),
+  totalSales: Number(record.totalSales ?? 0),
+  dealsInProgress: Number(record.dealsInProgress ?? 0),
+  openLeads: Number(record.openLeads ?? 0),
+  responseTimeHours: Number(record.responseTimeHours ?? 0),
+  joinedAt: record.joinedAt,
+  lastActiveAt: record.lastActiveAt,
+  notes: record.notes ?? undefined
+})
 
 const normalizeIdentifierValue = (value: unknown) => {
   if (value === undefined || value === null) {
@@ -626,15 +732,18 @@ const buildPromotePayloadFromMLS = (
 }
 
 export function BrokerProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth()
+  const { user, activeOrgId } = useAuth()
+  const fallbackTenantId = FALLBACK_TENANT_ID
 
-  const demoOptions = useMemo(
-    () => ({
+  const demoOptions = useMemo(() => {
+    const maybeUser = user as (typeof user & { tenantId?: string; firmId?: string }) | null
+    return {
       demoUserId: user?.id ?? FALLBACK_DEMO_USER_ID,
-      demoFirmId: user?.firmId ?? FALLBACK_DEMO_FIRM_ID,
-    }),
-    [user?.id, user?.firmId]
-  )
+      demoFirmId: maybeUser?.firmId ?? FALLBACK_DEMO_FIRM_ID,
+      tenantId: maybeUser?.tenantId ?? fallbackTenantId,
+      orgId: activeOrgId ?? null
+    }
+  }, [user, activeOrgId, fallbackTenantId])
 
   // Initialize state with cached data for offline resilience
   const [properties, setProperties] = useState<MLSProperty[]>(() => {
@@ -654,6 +763,31 @@ export function BrokerProvider({ children }: { children: React.ReactNode }) {
   const [leads, setLeads] = useState<Lead[]>(() =>
     (safeGetItem(STORAGE_KEYS.leads, []) as Lead[])
   )
+
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
+    const cached = safeGetItem(STORAGE_KEYS.teamMembers, []) as Partial<TeamMember>[]
+    return cached.map((member) => ({
+      id: member.id ?? `member_${Math.random().toString(36).slice(2, 10)}`,
+      tenantId: member.tenantId ?? FALLBACK_TENANT_ID,
+      orgId: member.orgId,
+      name: member.name ?? 'Unnamed agent',
+      email: member.email ?? 'unknown@example.com',
+      phone: member.phone,
+      role: member.role ?? 'Agent',
+      status: member.status ?? 'active',
+      experienceYears: member.experienceYears ?? undefined,
+      rating: member.rating ?? 0,
+      totalSales: member.totalSales ?? 0,
+      dealsInProgress: member.dealsInProgress ?? 0,
+      openLeads: member.openLeads ?? 0,
+      responseTimeHours: member.responseTimeHours ?? 0,
+      joinedAt: member.joinedAt ?? new Date().toISOString(),
+      lastActiveAt: member.lastActiveAt ?? new Date().toISOString(),
+      notes: member.notes
+    }))
+  })
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false)
+  const [teamMembersError, setTeamMembersError] = useState<string | null>(null)
 
   const loadPropertiesFromApi = useCallback(async () => {
     try {
@@ -716,6 +850,34 @@ export function BrokerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     safeSetItem(STORAGE_KEYS.leads, leads, STORAGE_LIMITS.leads)
   }, [leads])
+
+  useEffect(() => {
+    safeSetItem(
+      STORAGE_KEYS.teamMembers,
+      teamMembers as unknown as Record<string, unknown>[],
+      STORAGE_LIMITS.teamMembers
+    )
+  }, [teamMembers])
+
+  const loadTeamMembers = useCallback(async () => {
+    if (!demoOptions.tenantId) return
+    setTeamMembersLoading(true)
+    setTeamMembersError(null)
+    try {
+      const rows = await listTeamMembers(demoOptions.tenantId)
+      const mapped = rows.map(normaliseTeamMemberRecord)
+      setTeamMembers(mapped)
+    } catch (error) {
+      console.error('Failed to load team members', error)
+      setTeamMembersError(error instanceof Error ? error.message : 'failed_to_load_team_members')
+    } finally {
+      setTeamMembersLoading(false)
+    }
+  }, [demoOptions.tenantId])
+
+  useEffect(() => {
+    void loadTeamMembers()
+  }, [loadTeamMembers])
 
   // Property management functions
   const addProperty = useCallback(
@@ -888,21 +1050,33 @@ export function BrokerProvider({ children }: { children: React.ReactNode }) {
   )
 
   const deleteProperty = useCallback(async (id: string): Promise<void> => {
-    try {
-      await deleteBrokerProperty(id)
-    } catch (error) {
-      const err = error as Error & { status?: number }
-      const isNotFound = err?.message === 'not_found' || err?.status === 404
+    const serverBacked = isUuid(id)
 
-      if (isNotFound) {
-        console.warn('Property not found remotely. Removing from local state only.', {
-          propertyId: id,
-        })
-      } else {
-        console.error('Failed to delete property', error)
-        setPropertiesError(error instanceof Error ? error.message : 'delete_failed')
-        throw error
+    if (serverBacked) {
+      try {
+        await deleteBrokerProperty(id)
+      } catch (error) {
+        const err = error as Error & { status?: number }
+        const message = err?.message ?? ''
+        const status = err?.status
+        const isNotFound = message === 'not_found' || status === 404
+
+        if (isNotFound) {
+          console.warn('Property not found remotely. Removing from local state only.', {
+            propertyId: id,
+          })
+        } else if (message === 'property_fetch_failed') {
+          console.warn('Property fetch failed during delete; treating as local-only draft.', {
+            propertyId: id,
+          })
+        } else {
+          console.error('Failed to delete property', error)
+          setPropertiesError(error instanceof Error ? error.message : 'delete_failed')
+          throw error
+        }
       }
+    } else {
+      console.debug('Skipping remote delete for local-only draft', { propertyId: id })
     }
 
     setProperties((prev) => {
@@ -1301,29 +1475,82 @@ export function BrokerProvider({ children }: { children: React.ReactNode }) {
       console.warn('🚫 Duplicate draft listings detected and skipped:', duplicateDrafts)
     }
 
-    const promoted = await Promise.all(
-      uniqueDraftProperties.map(async (draftProperty) => {
-        if (!demoOptions.demoFirmId) {
-          return draftProperty
-        }
+    const PROMOTE_TIMEOUT_MS = 15000
+    const PROMOTE_TIMEOUT_TOKEN = Symbol('promote-timeout')
+    let promoteTimeoutCount = 0
+    let promoteFailureCount = 0
 
-        try {
-          const payload = buildPromotePayloadFromMLS(
-            draftProperty,
-            (defaultFirmId && isUuid(defaultFirmId)) ? defaultFirmId : FALLBACK_DEMO_FIRM_ID,
-            (defaultAgentId && isUuid(defaultAgentId)) ? defaultAgentId : undefined,
-            'bulk_upload',
-            (draftProperty as any).fileName as string | undefined
-          )
-          const row = await promoteDraftProperty(payload)
-          return mapRowToMLSProperty(row)
-        } catch (error) {
+    const promoted: MLSProperty[] = []
+
+    for (const draftProperty of uniqueDraftProperties) {
+      if (!demoOptions.demoFirmId) {
+        promoted.push(draftProperty)
+        continue
+      }
+
+      const payload = buildPromotePayloadFromMLS(
+        draftProperty,
+        (defaultFirmId && isUuid(defaultFirmId)) ? defaultFirmId : FALLBACK_DEMO_FIRM_ID,
+        (defaultAgentId && isUuid(defaultAgentId)) ? defaultAgentId : undefined,
+        'bulk_upload',
+        (draftProperty as any).fileName as string | undefined
+      )
+
+      const propertyPayload = payload.property as Record<string, unknown> | undefined
+      const photos = Array.isArray(propertyPayload?.photos as string[] | undefined)
+        ? ((propertyPayload?.photos as string[]) ?? [])
+        : []
+      const addressBits = [
+        propertyPayload?.street_number ?? propertyPayload?.streetNumber,
+        propertyPayload?.street_name ?? propertyPayload?.streetName,
+        propertyPayload?.city,
+      ].filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+
+      console.log('🚀 Promoting draft property via Supabase', {
+        id: draftProperty.id,
+        firmId: payload.firmId,
+        hasPhotos: photos.length > 0,
+        addressPreview: addressBits.join(' '),
+      })
+
+      const promotionStart = performance.now()
+
+      const promotionPromise = promoteDraftProperty(payload)
+        .then((row) => mapRowToMLSProperty(row))
+        .catch((error) => {
+          promoteFailureCount += 1
           console.error('Failed to promote draft property', error)
           setPropertiesError(error instanceof Error ? error.message : 'promote_failed')
-          return draftProperty
+          return null
+        })
+
+      const result = await Promise.race([
+        promotionPromise,
+        new Promise<typeof PROMOTE_TIMEOUT_TOKEN>((resolve) =>
+          setTimeout(() => resolve(PROMOTE_TIMEOUT_TOKEN), PROMOTE_TIMEOUT_MS)
+        ),
+      ])
+
+      if (result === PROMOTE_TIMEOUT_TOKEN || result === null) {
+        if (result === PROMOTE_TIMEOUT_TOKEN) {
+          promoteTimeoutCount += 1
+          console.warn('Promotion timed out for draft property', {
+            id: draftProperty.id,
+            fileName: (draftProperty as { fileName?: string } | undefined)?.fileName,
+            durationMs: Math.round(performance.now() - promotionStart),
+          })
         }
+        promoted.push(draftProperty)
+        continue
+      }
+
+      console.log('✅ Supabase promotion completed', {
+        id: draftProperty.id,
+        durationMs: Math.round(performance.now() - promotionStart),
       })
-    )
+
+      promoted.push(result as MLSProperty)
+    }
 
     const normalizedPromoted = promoted.map((prop) =>
       prop.workflowState === 'LIVE' && prop.status === 'draft'
@@ -1346,9 +1573,18 @@ export function BrokerProvider({ children }: { children: React.ReactNode }) {
       return reordered
     })
 
+    const warnings: DraftImportWarnings | undefined =
+      promoteTimeoutCount > 0 || promoteFailureCount > 0
+        ? {
+            ...(promoteTimeoutCount > 0 ? { timeouts: promoteTimeoutCount } : {}),
+            ...(promoteFailureCount > 0 ? { failures: promoteFailureCount } : {}),
+          }
+        : undefined
+
     return {
       created: normalizedPromoted,
       duplicates: duplicateDrafts,
+      warnings,
     }
   }, [demoOptions, defaultFirmId, defaultAgentId, properties])
 
@@ -1373,6 +1609,119 @@ export function BrokerProvider({ children }: { children: React.ReactNode }) {
   const deleteLead = (id: string) => {
     setLeads(prev => prev.filter(lead => lead.id !== id))
   }
+
+  const addTeamMember = useCallback(async (payload: CreateTeamMemberInput) => {
+    if (!demoOptions.tenantId) {
+      throw new Error('tenant_id_required')
+    }
+
+    const record = await createTeamMemberApi({
+      tenantId: demoOptions.tenantId,
+      orgId: demoOptions.orgId ?? undefined,
+      name: payload.name,
+      email: payload.email,
+      phone: payload.phone,
+      role: payload.role,
+      status: payload.status,
+      experienceYears: payload.experienceYears,
+      rating: payload.rating,
+      totalSales: payload.totalSales,
+      dealsInProgress: payload.dealsInProgress,
+      openLeads: payload.openLeads,
+      responseTimeHours: payload.responseTimeHours,
+      notes: payload.notes
+    })
+
+    const member = normaliseTeamMemberRecord(record)
+    setTeamMembers((prev) => [...prev, member])
+    return member
+  }, [demoOptions.orgId, demoOptions.tenantId])
+
+  const updateTeamMember = useCallback(async (id: string, updates: Partial<TeamMember>) => {
+    const payload: Record<string, unknown> = {}
+    if (updates.name !== undefined) payload.name = updates.name
+    if (updates.email !== undefined) payload.email = updates.email
+    if (updates.phone !== undefined) payload.phone = updates.phone
+    if (updates.role !== undefined) payload.role = updates.role
+    if (updates.status !== undefined) payload.status = updates.status
+    if (updates.experienceYears !== undefined) payload.experienceYears = updates.experienceYears
+    if (updates.rating !== undefined) payload.rating = updates.rating
+    if (updates.totalSales !== undefined) payload.totalSales = updates.totalSales
+    if (updates.dealsInProgress !== undefined) payload.dealsInProgress = updates.dealsInProgress
+    if (updates.openLeads !== undefined) payload.openLeads = updates.openLeads
+    if (updates.responseTimeHours !== undefined) payload.responseTimeHours = updates.responseTimeHours
+    if (updates.notes !== undefined) payload.notes = updates.notes
+    if (updates.joinedAt !== undefined) payload.joinedAt = updates.joinedAt
+    if (updates.lastActiveAt !== undefined) payload.lastActiveAt = updates.lastActiveAt
+
+    const record = await updateTeamMemberApi(id, {
+      ...(demoOptions.tenantId ? { tenantId: demoOptions.tenantId } : {}),
+      ...payload
+    })
+
+    const member = normaliseTeamMemberRecord(record)
+    setTeamMembers((prev) => prev.map((item) => (item.id === id ? member : item)))
+    return member
+  }, [demoOptions.tenantId])
+
+  const removeTeamMember = useCallback(async (id: string) => {
+    await deleteTeamMemberApi(id)
+    setTeamMembers((prev) => prev.filter((member) => member.id !== id))
+  }, [])
+
+  const getTeamSummary = useCallback((): TeamSummary => {
+    if (teamMembers.length === 0) {
+      return {
+        totalMembers: 0,
+        activeMembers: 0,
+        inactiveMembers: 0,
+        pendingMembers: 0,
+        averageRating: 0,
+        totalSales: 0
+      }
+    }
+
+    const totals = teamMembers.reduce(
+      (acc, member) => {
+        acc.totalSales += member.totalSales
+        acc.averageRating += member.rating
+        if (member.status === 'active') acc.activeMembers += 1
+        if (member.status === 'inactive') acc.inactiveMembers += 1
+        if (member.status === 'pending') acc.pendingMembers += 1
+        return acc
+      },
+      { totalSales: 0, averageRating: 0, activeMembers: 0, inactiveMembers: 0, pendingMembers: 0 }
+    )
+
+    return {
+      totalMembers: teamMembers.length,
+      activeMembers: totals.activeMembers,
+      inactiveMembers: totals.inactiveMembers,
+      pendingMembers: totals.pendingMembers,
+      averageRating: Number((totals.averageRating / teamMembers.length).toFixed(2)) || 0,
+      totalSales: totals.totalSales
+    }
+  }, [teamMembers])
+
+  const getMemberPerformance = useCallback((id: string): TeamPerformance | null => {
+    const member = teamMembers.find((item) => item.id === id)
+    if (!member) return null
+
+    return {
+      name: member.name,
+      role: member.role,
+      status: member.status,
+      rating: member.rating,
+      totalSales: member.totalSales,
+      dealsInProgress: member.dealsInProgress,
+      openLeads: member.openLeads,
+      responseTimeHours: member.responseTimeHours,
+      experienceYears: member.experienceYears,
+      joinedAt: member.joinedAt,
+      lastActiveAt: member.lastActiveAt,
+      notes: member.notes ?? undefined
+    }
+  }, [teamMembers])
 
   // Analytics function
   const getAnalytics = () => {
@@ -1408,6 +1757,15 @@ export function BrokerProvider({ children }: { children: React.ReactNode }) {
     addLead,
     updateLead,
     deleteLead,
+    teamMembers,
+    teamMembersLoading,
+    teamMembersError,
+    refreshTeamMembers: loadTeamMembers,
+    addTeamMember,
+    updateTeamMember,
+    removeTeamMember,
+    getTeamSummary,
+    getMemberPerformance,
     getAnalytics
   }
 
@@ -1425,3 +1783,5 @@ export function useBroker() {
   }
   return context
 }
+
+export type { TeamMember, TeamPerformance, TeamSummary }

@@ -15,6 +15,7 @@ import {
   Calendar,
   DollarSign
 } from 'lucide-react'
+import { HatchLogo } from '@/components/HatchLogo'
 
 export default function Payment() {
   const navigate = useNavigate()
@@ -110,12 +111,12 @@ export default function Payment() {
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center h-16">
             {/* Logo - Clickable Home Button */}
-            <div 
+            <div
               className="flex items-center cursor-pointer hover:opacity-80 transition-opacity" 
               onClick={() => navigate('/')}
             >
-              <HomeIcon className="h-8 w-8 text-blue-600 mr-2" />
-              <span className="text-xl font-bold text-gray-900">Hatch</span>
+              <HomeIcon className="h-6 w-6 text-blue-600 mr-2" />
+              <HatchLogo className="h-7" />
             </div>
 
             {/* Navigation */}

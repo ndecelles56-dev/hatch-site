@@ -1,18 +1,21 @@
 import React, { useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { 
-  Home, 
-  BarChart3, 
-  Users, 
-  Calendar, 
-  Building2, 
-  UserCheck, 
+import {
+  BarChart3,
+  Building2,
+  GitBranch,
+  UserCheck,
   FileText,
   Globe,
-  LogOut
+  LogOut,
+  NotebookPen,
+  Home,
+  ShieldCheck,
+  Percent
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { HatchLogo } from '@/components/HatchLogo'
 
 export default function BrokerSidebar() {
   const navigate = useNavigate()
@@ -22,9 +25,11 @@ export default function BrokerSidebar() {
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/broker/dashboard' },
     { icon: Building2, label: 'Properties', path: '/broker/properties' },
-    { icon: Users, label: 'Leads', path: '/broker/leads' },
+    { icon: NotebookPen, label: 'CRM', path: '/broker/crm' },
+    { icon: ShieldCheck, label: 'Compliance', path: '/broker/compliance' },
     { icon: UserCheck, label: 'Team', path: '/broker/team' },
-    { icon: Calendar, label: 'Calendar', path: '/broker/calendar' },
+    { icon: Percent, label: 'Commission Plans', path: '/broker/commission-plans' },
+    { icon: GitBranch, label: 'Lead Routing', path: '/broker/lead-routing' },
     { icon: BarChart3, label: 'Analytics', path: '/broker/analytics' },
     { icon: FileText, label: 'Draft Listings', path: '/broker/draft-listings' },
   ]
@@ -43,12 +48,11 @@ export default function BrokerSidebar() {
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
-        <div 
+        <div
           className="flex items-center cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => navigate('/')}
         >
-          <Home className="h-8 w-8 text-blue-600 mr-3" />
-          <span className="text-xl font-bold text-gray-900">Hatch</span>
+          <HatchLogo className="h-8" />
         </div>
         <p className="text-sm text-gray-500 mt-1">Broker Portal</p>
       </div>
