@@ -20,6 +20,11 @@ import { TeamModule } from './modules/team/team.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
 import { CommissionPlansModule } from './modules/commission-plans/commission-plans.module';
+import { DealDeskModule } from './modules/deal-desk/deal-desk.module';
+import { PayoutsModule } from './modules/payouts/payouts.module';
+import { CdaModule } from './modules/cda/cda.module';
+import { ReportingModule } from './modules/reporting/reporting.module';
+import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
 
 @Module({
   imports: [
@@ -48,11 +53,16 @@ import { CommissionPlansModule } from './modules/commission-plans/commission-pla
           maxSizeBytes: Number(process.env.ATTACHMENT_MAX_SIZE_BYTES ?? 10 * 1024 * 1024),
           allowedMimeTypes:
             process.env.ATTACHMENT_ALLOWED_MIME_TYPES ?? 'image/png,image/jpeg,image/gif,application/pdf,text/plain'
+        },
+        features: {
+          dealDeskCommission:
+            (process.env.FEATURE_DEAL_DESK_COMMISSION ?? 'false').toLowerCase() === 'true'
         }
       })]
     }),
     EventEmitterModule.forRoot(),
     PrismaModule,
+    FeatureFlagsModule,
     HealthModule,
     ContactsModule,
     ConsentsModule,
@@ -69,7 +79,11 @@ import { CommissionPlansModule } from './modules/commission-plans/commission-pla
     TeamModule,
     ConversationsModule,
     ComplianceModule,
-    CommissionPlansModule
+    CommissionPlansModule,
+    DealDeskModule,
+    PayoutsModule,
+    CdaModule,
+    ReportingModule
   ],
   controllers: [],
   providers: []
