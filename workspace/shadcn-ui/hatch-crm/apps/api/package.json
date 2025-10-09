@@ -2,8 +2,8 @@
   "name": "@hatch/api",
   "private": true,
   "scripts": {
-    "dev": "nest start --watch",
-    "build": "nest build",
+    "dev": "nest start --watch --entryFile apps/api/src/main",
+    "build": "pnpm --filter @hatch/db run generate && nest build",
     "start": "node dist/apps/api/src/main.js",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "jest --runInBand",

@@ -18,12 +18,9 @@ export class FeatureFlagsService {
       return [];
     }
 
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { featureFlags: true }
-    });
-
-    return tenant?.featureFlags ?? [];
+    // Tenant-scoped feature toggles were removed from the schema in favor of global flags.
+    // Keeping the async shape so we can reintroduce per-tenant overrides without refactoring callers.
+    return [];
   }
 
   async listEnabled(tenantId?: string | null): Promise<FeatureFlagName[]> {
