@@ -32,7 +32,7 @@ export default async function DashboardPage() {
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-700">Deliverability</h2>
         <div className="mt-3 space-y-2 text-sm">
-          {dashboard.deliverability.map((row: any) => (
+          {dashboard.deliverability.map((row) => (
             <div key={row.channel} className="flex justify-between border-b border-slate-100 pb-2 last:border-b-0">
               <span className="font-medium text-slate-600">{row.channel}</span>
               <span className="text-slate-500">
@@ -46,7 +46,7 @@ export default async function DashboardPage() {
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-700">Clear Cooperation</h2>
         <div className="mt-3 space-y-2 text-sm">
-          {dashboard.clearCooperation.map((timer: any) => (
+          {dashboard.clearCooperation.map((timer) => (
             <div key={timer.timerId} className="flex items-center justify-between rounded border border-slate-100 p-3">
               <div>
                 <p className="font-medium text-slate-700">{timer.listing?.addressLine1 ?? 'Unassigned Listing'}</p>

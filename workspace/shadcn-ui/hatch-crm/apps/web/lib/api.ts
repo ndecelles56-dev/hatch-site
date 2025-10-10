@@ -35,6 +35,36 @@ export type ContactListItem = {
   primaryPhone?: string;
 };
 
+export type DeliverabilityRow = {
+  channel: string;
+  accepted: number;
+  delivered: number;
+  bounced: number;
+  optOuts: number;
+};
+
+export type DealSummaryRow = {
+  stage: string;
+  forecastGci: number;
+  actualGci: number;
+};
+
+export type BrokerDashboardSummary = {
+  leadToKeptRate: number;
+  toursWithBbaRate: number;
+  deliverability: DeliverabilityRow[];
+  deals: DealSummaryRow[];
+  clearCooperation: Array<{
+    timerId: string;
+    status: string;
+    startedAt: string;
+    deadlineAt: string | null;
+    listing?: {
+      addressLine1?: string | null;
+    } | null;
+  }>;
+};
+
 export async function listContacts(tenantId: string) {
   return apiFetch<ContactListItem[]>(`/contacts?tenantId=${tenantId}`);
 }
@@ -44,7 +74,7 @@ export async function getContact(tenantId: string, personId: string) {
 }
 
 export async function getBrokerDashboard(tenantId: string) {
-  return apiFetch(`/dashboards/broker?tenantId=${tenantId}`);
+  return apiFetch<BrokerDashboardSummary>(`/dashboards/broker?tenantId=${tenantId}`);
 }
 
 export async function requestTour(payload: Record<string, unknown>) {
