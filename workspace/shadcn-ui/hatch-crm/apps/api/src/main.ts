@@ -1,14 +1,18 @@
+import cors, { type FastifyCorsOptions, type FastifyCorsOptionsDelegate } from '@fastify/cors';
+import helmet, { type FastifyHelmetOptions } from '@fastify/helmet';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import helmet, { type FastifyHelmetOptions } from '@fastify/helmet';
-import cors, { type FastifyCorsOptions, type FastifyCorsOptionsDelegate } from '@fastify/cors';
 
 import { AppModule } from './app.module';
 
-async function bootstrap() {
+let cachedServer: any = null;
+let appPromise: Promise<NestFastifyApplication> | null = null;
+
+async function createApp(): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: false })
@@ -21,10 +25,10 @@ async function bootstrap() {
     origin: true,
     credentials: true
   } satisfies FastifyCorsOptions;
-  await app.register(cors as unknown as Parameters<typeof app.register>[0], corsOptions as FastifyCorsOptions | FastifyCorsOptionsDelegate);
-
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('app.port') ?? 4000;
+  await app.register(
+    cors as unknown as Parameters<typeof app.register>[0],
+    corsOptions as FastifyCorsOptions | FastifyCorsOptionsDelegate
+  );
 
   app.enableShutdownHooks();
   app.useGlobalPipes(
@@ -44,7 +48,35 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
 
-  await app.listen({ port, host: configService.get<string>('app.host') ?? '0.0.0.0' });
+  await app.init();
+
+  return app;
 }
 
-void bootstrap();
+async function ensureServer() {
+  if (!cachedServer) {
+    appPromise = appPromise ?? createApp();
+    const app = await appPromise;
+    cachedServer = app.getHttpAdapter().getInstance();
+  }
+
+  return cachedServer;
+}
+
+async function bootstrap() {
+  const app = await createApp();
+  const configService = app.get(ConfigService);
+  const port = configService.get<number>('app.port') ?? 4000;
+  const host = configService.get<string>('app.host') ?? '0.0.0.0';
+
+  await app.listen({ port, host });
+}
+
+if (!process.env.VERCEL) {
+  void bootstrap();
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const fastifyInstance = await ensureServer();
+  return fastifyInstance(req, res);
+}
