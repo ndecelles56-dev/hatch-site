@@ -2,6 +2,8 @@ import Link from 'next/link';
 
 import { listContacts } from '@/lib/api';
 
+export const dynamic = 'force-dynamic';
+
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.VITE_TENANT_ID ?? 'tenant-hatch';
 
 export default async function PeoplePage() {

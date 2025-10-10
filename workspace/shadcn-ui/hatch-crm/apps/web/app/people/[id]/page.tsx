@@ -1,6 +1,8 @@
 import ContactActions from '@/components/contact-actions';
 import { getContact } from '@/lib/api';
 
+export const dynamic = 'force-dynamic';
+
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.VITE_TENANT_ID ?? 'tenant-hatch';
 
 export default async function ContactPage({ params }: { params: { id: string } }) {
