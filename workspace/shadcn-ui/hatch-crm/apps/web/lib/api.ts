@@ -35,6 +35,85 @@ export type ContactListItem = {
   primaryPhone?: string;
 };
 
+export type ContactDetails = ContactListItem & {
+  organizationId: string;
+  notes?: string | null;
+  consents: Array<{
+    id: string;
+    channel: string;
+    scope: string | null;
+    status: string;
+    capturedAt: string | null;
+    verbatimText?: string | null;
+    source?: string | null;
+  }>;
+  deals: Array<{
+    id: string;
+    stage: string;
+    updatedAt: string;
+    listing?: {
+      id: string;
+      status: string;
+      addressLine1?: string | null;
+    } | null;
+  }>;
+  tours: Array<{
+    id: string;
+    status: string;
+    startAt: string;
+    listing?: {
+      id: string;
+      addressLine1?: string | null;
+    } | null;
+    agent?: {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+    } | null;
+  }>;
+  messages: Array<{
+    id: string;
+    channel: string;
+    direction: string;
+    createdAt: string;
+    subject?: string | null;
+    body?: string | null;
+    user?: {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+    } | null;
+  }>;
+  timeline?: Array<{
+    id: string;
+    type: string;
+    occurredAt: string;
+    payload: unknown;
+    actor?: {
+      id: string | null;
+      name: string | null;
+    };
+  }>;
+  agreements?: Array<{
+    id: string;
+    type: string;
+    status: string;
+    signedAt?: string | null;
+  }>;
+  activitySummary?: Array<{
+    type: string;
+    _count: {
+      type: number;
+    };
+  }>;
+  toursSummary?: Array<{
+    status: string;
+    _count: {
+      status: number;
+    };
+  }>;
+};
+
 export type DeliverabilityRow = {
   channel: string;
   accepted: number;
@@ -85,7 +164,7 @@ export async function listContacts(tenantId: string) {
 }
 
 export async function getContact(tenantId: string, personId: string) {
-  return apiFetch(`/contacts/${personId}?tenantId=${tenantId}`);
+  return apiFetch<ContactDetails>(`/contacts/${personId}?tenantId=${tenantId}`);
 }
 
 export async function getBrokerDashboard(tenantId: string) {
