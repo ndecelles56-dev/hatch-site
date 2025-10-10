@@ -8,7 +8,20 @@ interface FetchOptions extends RequestInit {
 export async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const url = `${API_URL}${path}`;
   const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
+
+  if (!headers.has('x-user-role')) {
+    headers.set('x-user-role', 'BROKER');
+  }
+  if (!headers.has('x-user-id')) {
+    headers.set('x-user-id', 'user-broker');
+  }
+  if (!headers.has('x-tenant-id')) {
+    headers.set('x-tenant-id', process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.VITE_TENANT_ID ?? 'tenant-hatch');
+  }
+
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (options.token) {
     headers.set('Authorization', `Bearer ${options.token}`);
   }
