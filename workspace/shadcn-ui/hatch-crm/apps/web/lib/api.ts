@@ -143,6 +143,12 @@ export type AgreementSummary = {
   expiryDate?: string | null;
 };
 
+export type PreflightResult = {
+  pass: boolean;
+  violations: string[];
+  warnings: string[];
+};
+
 export type DeliverabilityRow = {
   channel: string;
   accepted: number;
@@ -213,7 +219,7 @@ export async function sendSms(payload: Record<string, unknown>) {
 }
 
 export async function runPreflight(payload: Record<string, unknown>) {
-  return apiFetch('/mls/preflight', { method: 'POST', body: JSON.stringify(payload) });
+  return apiFetch<PreflightResult>('/mls/preflight', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export async function listListings(tenantId: string) {
