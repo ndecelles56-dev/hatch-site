@@ -12,6 +12,7 @@
     "ci": "turbo run lint test build"
   },
   "devDependencies": {
+    "next": "^14.2.10",
     "turbo": "^1.13.4",
     "typescript": "^5.5.4"
   }
