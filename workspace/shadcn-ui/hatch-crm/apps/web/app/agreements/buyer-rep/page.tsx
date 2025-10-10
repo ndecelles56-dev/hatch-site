@@ -1,7 +1,7 @@
 import BbaWizard from '@/components/bba-wizard';
 import { listContacts } from '@/lib/api';
 
-const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? 'tenant-hatch';
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.VITE_TENANT_ID ?? 'tenant-hatch';
 
 export default async function BuyerRepPage() {
   const contacts = await listContacts(TENANT_ID);

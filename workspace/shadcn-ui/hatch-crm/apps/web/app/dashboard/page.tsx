@@ -1,6 +1,6 @@
 import { getBrokerDashboard } from '@/lib/api';
 
-const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? 'tenant-hatch';
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.VITE_TENANT_ID ?? 'tenant-hatch';
 
 export default async function DashboardPage() {
   const dashboard = await getBrokerDashboard(TENANT_ID);

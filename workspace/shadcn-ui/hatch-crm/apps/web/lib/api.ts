@@ -1,4 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? process.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 
 interface FetchOptions extends RequestInit {
   token?: string;
@@ -208,6 +209,14 @@ export type BrokerDashboardSummary = {
   }>;
 };
 
+const EMPTY_DASHBOARD: BrokerDashboardSummary = {
+  leadToKeptRate: 0,
+  toursWithBbaRate: 0,
+  deliverability: [],
+  deals: [],
+  clearCooperation: []
+};
+
 export type MlsProfile = {
   id: string;
   tenantId: string;
@@ -232,7 +241,12 @@ export async function getContact(tenantId: string, personId: string) {
 }
 
 export async function getBrokerDashboard(tenantId: string) {
-  return apiFetch<BrokerDashboardSummary>(`/dashboards/broker?tenantId=${tenantId}`);
+  try {
+    return await apiFetch<BrokerDashboardSummary>(`/dashboards/broker?tenantId=${tenantId}`);
+  } catch (error) {
+    console.error('Failed to load broker dashboard data', error);
+    return EMPTY_DASHBOARD;
+  }
 }
 
 export async function requestTour(payload: Record<string, unknown>) {

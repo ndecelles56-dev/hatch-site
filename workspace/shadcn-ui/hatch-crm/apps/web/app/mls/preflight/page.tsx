@@ -1,7 +1,7 @@
 import MlsPreflightForm from '@/components/mls-preflight-form';
 import { listMlsProfiles } from '@/lib/api';
 
-const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? 'tenant-hatch';
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.VITE_TENANT_ID ?? 'tenant-hatch';
 
 export default async function MlsPreflightPage() {
   const profiles = await listMlsProfiles(TENANT_ID);

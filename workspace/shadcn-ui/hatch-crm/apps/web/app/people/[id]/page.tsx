@@ -1,7 +1,7 @@
 import ContactActions from '@/components/contact-actions';
 import { getContact } from '@/lib/api';
 
-const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? 'tenant-hatch';
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.VITE_TENANT_ID ?? 'tenant-hatch';
 
 export default async function ContactPage({ params }: { params: { id: string } }) {
   const contact = await getContact(TENANT_ID, params.id);
