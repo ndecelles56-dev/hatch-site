@@ -132,6 +132,17 @@ export type ListingSummary = {
   updatedAt: string;
 };
 
+export type AgreementSummary = {
+  id: string;
+  tenantId: string;
+  personId: string;
+  type: string;
+  status: string;
+  signedAt?: string | null;
+  effectiveDate?: string | null;
+  expiryDate?: string | null;
+};
+
 export type DeliverabilityRow = {
   channel: string;
   accepted: number;
@@ -210,11 +221,14 @@ export async function listListings(tenantId: string) {
 }
 
 export async function createAgreement(payload: Record<string, unknown>) {
-  return apiFetch('/agreements', { method: 'POST', body: JSON.stringify(payload) });
+  return apiFetch<AgreementSummary>('/agreements', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export async function signAgreement(agreementId: string, payload: Record<string, unknown>) {
-  return apiFetch(`/agreements/${agreementId}/sign`, { method: 'POST', body: JSON.stringify(payload) });
+  return apiFetch<AgreementSummary>(`/agreements/${agreementId}/sign`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function listMlsProfiles(tenantId: string) {
