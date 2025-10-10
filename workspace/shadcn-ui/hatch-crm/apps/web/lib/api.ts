@@ -149,6 +149,35 @@ export type PreflightResult = {
   warnings: string[];
 };
 
+export type AgentRoutingReason = {
+  type: string;
+  description: string;
+  weight: number;
+};
+
+export type AgentScore = {
+  userId: string;
+  fullName: string;
+  score: number;
+  reasons: AgentRoutingReason[];
+};
+
+export type RoutingResult = {
+  leadId: string;
+  tenantId: string;
+  selectedAgents: AgentScore[];
+  fallbackTeamId?: string;
+  usedFallback: boolean;
+  quietHours: boolean;
+};
+
+export type RequestTourResponse = {
+  tourId: string;
+  status: 'REQUESTED' | 'CONFIRMED';
+  assignedAgent?: AgentScore | null;
+  routingResult?: RoutingResult;
+};
+
 export type DeliverabilityRow = {
   channel: string;
   accepted: number;
@@ -207,7 +236,7 @@ export async function getBrokerDashboard(tenantId: string) {
 }
 
 export async function requestTour(payload: Record<string, unknown>) {
-  return apiFetch('/tours', { method: 'POST', body: JSON.stringify(payload) });
+  return apiFetch<RequestTourResponse>('/tours', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export async function captureConsent(personId: string, payload: Record<string, unknown>) {
