@@ -65,6 +65,21 @@ export type BrokerDashboardSummary = {
   }>;
 };
 
+export type MlsProfile = {
+  id: string;
+  tenantId: string;
+  name: string;
+  disclaimerText: string;
+  compensationDisplayRule: 'allowed' | 'prohibited' | 'conditional';
+  requiredPlacement?: string | null;
+  prohibitedFields?: Record<string, unknown> | null;
+  clearCooperationRequired: boolean;
+  slaHours: number;
+  lastReviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export async function listContacts(tenantId: string) {
   return apiFetch<ContactListItem[]>(`/contacts?tenantId=${tenantId}`);
 }
@@ -106,5 +121,5 @@ export async function signAgreement(agreementId: string, payload: Record<string,
 }
 
 export async function listMlsProfiles(tenantId: string) {
-  return apiFetch(`/mls/profiles?tenantId=${tenantId}`);
+  return apiFetch<MlsProfile[]>(`/mls/profiles?tenantId=${tenantId}`);
 }

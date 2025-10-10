@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 
-import { runPreflight } from '@/lib/api';
+import { type MlsProfile, runPreflight } from '@/lib/api';
 
 interface MlsPreflightFormProps {
   tenantId: string;
-  profiles: Array<{ id: string; name: string; disclaimerText: string }>;
+  profiles: Array<Pick<MlsProfile, 'id' | 'name' | 'disclaimerText'>>;
 }
 
 export default function MlsPreflightForm({ tenantId, profiles }: MlsPreflightFormProps) {
