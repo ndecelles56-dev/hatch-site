@@ -114,6 +114,24 @@ export type ContactDetails = ContactListItem & {
   }>;
 };
 
+export type ListingSummary = {
+  id: string;
+  tenantId: string;
+  status: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  price?: string | null;
+  beds?: number | null;
+  baths?: number | null;
+  propertyType?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DeliverabilityRow = {
   channel: string;
   accepted: number;
@@ -188,7 +206,7 @@ export async function runPreflight(payload: Record<string, unknown>) {
 }
 
 export async function listListings(tenantId: string) {
-  return apiFetch(`/listings?tenantId=${tenantId}`);
+  return apiFetch<ListingSummary[]>(`/listings?tenantId=${tenantId}`);
 }
 
 export async function createAgreement(payload: Record<string, unknown>) {

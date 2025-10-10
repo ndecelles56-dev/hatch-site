@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 
-import { requestTour } from '@/lib/api';
+import { requestTour, type ContactListItem, type ListingSummary } from '@/lib/api';
 
 interface TourBookerFormProps {
   tenantId: string;
-  contacts: Array<{ id: string; firstName: string; lastName: string }>;
-  listings: Array<{ id: string; addressLine1: string; city: string; state: string }>;
+  contacts: Array<Pick<ContactListItem, 'id' | 'firstName' | 'lastName'>>;
+  listings: Array<Pick<ListingSummary, 'id' | 'addressLine1' | 'city' | 'state'>>;
 }
 
 export default function TourBookerForm({ tenantId, contacts, listings }: TourBookerFormProps) {
