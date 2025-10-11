@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch --entryFile apps/api/src/main",
-    "build": "pnpm --filter @hatch/db run generate && node ../../node_modules/.bin/nest build",
+    "build": "pnpm --filter @hatch/db run generate && pnpm exec nest build",
     "start": "node dist/apps/api/src/main.js",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "jest --runInBand",
