@@ -1,4 +1,22 @@
 {
-  "buildCommand": "pnpm --dir ../../ --filter @hatch/api build",
-  "installCommand": "pnpm install --frozen-lockfile --dir ../../"
+  "builds": [
+    {
+      "src": "workspace/shadcn-ui/hatch-crm/apps/web/next.config.mjs",
+      "use": "@vercel/next"
+    },
+    {
+      "src": "workspace/shadcn-ui/hatch-crm/api/index.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "workspace/shadcn-ui/hatch-crm/api/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "workspace/shadcn-ui/hatch-crm/apps/web/$1"
+    }
+  ]
 }
