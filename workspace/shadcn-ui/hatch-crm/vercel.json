@@ -1,8 +1,4 @@
 {
-  "builds": [
-    { "src": "api/index.ts", "use": "@vercel/node@5" }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "api/index.ts" }
-  ]
+  "buildCommand": "pnpm --dir ../../ --filter @hatch/api build",
+  "installCommand": "pnpm install --frozen-lockfile --dir ../../"
 }
