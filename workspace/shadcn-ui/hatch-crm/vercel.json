@@ -12,11 +12,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "/api/index.js"
+      "destination": "api/index.js"
+    },
+    {
+      "source": "/",
+      "destination": "apps/web"
     },
     {
       "source": "/:path*",
-      "destination": "/apps/web/:path*"
+      "destination": "apps/web/:path*"
     }
   ]
 }
