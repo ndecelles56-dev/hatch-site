@@ -13,14 +13,6 @@
     {
       "src": "/api/(.*)",
       "dest": "api/index.js"
-    },
-    {
-      "src": "/",
-      "dest": "apps/web"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "apps/web/$1"
     }
   ]
 }
