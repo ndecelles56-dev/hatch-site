@@ -9,18 +9,18 @@
       "use": "@vercel/node"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "api/index.js"
+      "src": "/api/(.*)",
+      "dest": "api/index.js"
     },
     {
-      "source": "/",
-      "destination": "apps/web"
+      "src": "/",
+      "dest": "apps/web"
     },
     {
-      "source": "/:path*",
-      "destination": "apps/web/:path*"
+      "src": "/(.*)",
+      "dest": "apps/web/$1"
     }
   ]
 }
