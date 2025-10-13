@@ -15,11 +15,8 @@
       "dest": "api/index.js"
     },
     {
-      "handle": "filesystem"
-    },
-    {
       "src": "/(.*)",
-      "dest": "apps/web/$1"
+      "dest": "apps/web"
     }
   ]
 }
