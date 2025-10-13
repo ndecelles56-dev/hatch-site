@@ -1,0 +1,14 @@
+{
+  "extends": "../apps/api/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../apps/api/dist"
+  },
+  "include": [
+    "../apps/api/src/**/*.ts",
+    "./**/*.ts"
+  ],
+  "exclude": [
+    "../apps/api/src/**/*.spec.ts",
+    "../apps/api/src/**/__tests__/**/*"
+  ]
+}
