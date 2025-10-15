@@ -1,26 +1,48 @@
-// Prefer the precompiled Nest app when available (used in Vercel builds)
-// and fall back to the TypeScript source for local development.
-let modulePath;
+const path = require('path');
 
-const compiledEntry = '../apps/api/dist/apps/api/src/main';
-const sourceEntry = '../apps/api/src/main';
+const compiledEntry = path.join(__dirname, '../apps/api/dist/apps/api/src/main');
+const sourceEntry = path.join(__dirname, '../apps/api/src/main');
 
-const shouldForceCompiled = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+const preferCompiled = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 
-try {
-  modulePath = require.resolve(compiledEntry);
-} catch (error) {
-  if (shouldForceCompiled) {
-    throw error;
+let cachedModule;
+let cachedHandler;
+let lastError;
+
+function loadModule() {
+  if (cachedModule) {
+    return cachedModule;
   }
+
+  const candidates = preferCompiled ? [compiledEntry, sourceEntry] : [sourceEntry, compiledEntry];
+
+  for (const candidate of candidates) {
+    try {
+      cachedModule = require(candidate);
+      return cachedModule;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error('Unable to load Nest API entry point.');
 }
 
-if (!modulePath) {
-  modulePath = require.resolve(sourceEntry);
+function resolveHandler() {
+  if (cachedHandler) {
+    return cachedHandler;
+  }
+
+  const imported = loadModule();
+  const handler = imported.default ?? imported;
+
+  if (typeof handler !== 'function') {
+    throw new TypeError('Resolved Nest API entry does not export a callable handler.');
+  }
+
+  cachedHandler = handler;
+  return cachedHandler;
 }
 
-const imported = require(modulePath);
-const handler = imported.default ?? imported;
-
-module.exports = handler;
-module.exports.default = handler;
+module.exports = (...args) => resolveHandler()(...args);
+module.exports.default = module.exports;
