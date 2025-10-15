@@ -6,14 +6,12 @@
     },
     {
       "src": "api/index.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "apps/api/dist/**"
+      }
     }
   ],
-  "functions": {
-    "api/index.js": {
-      "includeFiles": "apps/api/dist/**"
-    }
-  },
   "routes": [
     {
       "src": "/api/(.*)",
