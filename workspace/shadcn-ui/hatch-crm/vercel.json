@@ -9,6 +9,11 @@
       "use": "@vercel/node"
     }
   ],
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "apps/api/dist/**"
+    }
+  },
   "routes": [
     {
       "src": "/api/(.*)",
