@@ -6,7 +6,7 @@
     "node": "22.x"
   },
   "scripts": {
-    "postinstall": "pnpm --filter @hatch/db run generate && pnpm --filter @hatch/api run build:dist",
+    "postinstall": "pnpm --filter @hatch/db run generate",
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
