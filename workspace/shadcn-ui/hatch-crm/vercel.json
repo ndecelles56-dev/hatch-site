@@ -1,6 +1,14 @@
 {
   "builds": [
     {
+      "src": "../package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "buildCommand": "pnpm install --frozen-lockfile --prod=false && pnpm run build && rm -rf marketing-dist && mv dist marketing-dist",
+        "distDir": "marketing-dist"
+      }
+    },
+    {
       "src": "apps/web/package.json",
       "use": "@vercel/next"
     },
