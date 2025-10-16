@@ -37,7 +37,7 @@
     },
     {
       "src": "/favicon.ico",
-      "dest": "apps/web/favicon.ico"
+      "dest": "marketing-dist/favicon.ico"
     },
     {
       "src": "/assets/(.*)",
@@ -50,6 +50,10 @@
     {
       "src": "/robots.txt",
       "dest": "marketing-dist/robots.txt"
+    },
+    {
+      "src": "/templates/(.*)",
+      "dest": "marketing-dist/templates/$1"
     },
     {
       "src": "/((dashboard|people|tour-booker|login|magic-link|agreements|mls)(/.*)?)",
