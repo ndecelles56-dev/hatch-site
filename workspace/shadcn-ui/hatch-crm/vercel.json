@@ -1,14 +1,6 @@
 {
   "builds": [
     {
-      "src": "../package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter shadcnui run build && rm -rf marketing-dist && mkdir -p marketing-dist && cp -R ../dist/. marketing-dist/",
-        "distDir": "marketing-dist"
-      }
-    },
-    {
       "src": "apps/web/package.json",
       "use": "@vercel/next"
     },
@@ -48,16 +40,24 @@
       "dest": "apps/web/favicon.ico"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "marketing-dist/assets/$1"
+    },
+    {
+      "src": "/favicon.svg",
+      "dest": "marketing-dist/favicon.svg"
+    },
+    {
+      "src": "/robots.txt",
+      "dest": "marketing-dist/robots.txt"
+    },
+    {
       "src": "/((dashboard|people|tour-booker|login|magic-link|agreements|mls)(/.*)?)",
       "dest": "apps/web/$1"
     },
     {
-      "src": "/",
-      "dest": "marketing-dist/index.html"
-    },
-    {
       "src": "/(.*)",
-      "dest": "marketing-dist/$1"
+      "dest": "marketing-dist/index.html"
     }
   ]
 }

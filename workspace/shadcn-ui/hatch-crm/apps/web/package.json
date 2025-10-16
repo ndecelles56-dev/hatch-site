@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "pnpm --filter @hatch/db run generate && pnpm --filter @hatch/api run build:dist && next build",
+    "build": "pnpm --dir ../../../ install --frozen-lockfile && pnpm --dir ../../../ run build && rm -rf ../../marketing-dist && mkdir -p ../../marketing-dist && cp -R ../../../dist/. ../../marketing-dist/ && pnpm --filter @hatch/db run generate && pnpm --filter @hatch/api run build:dist && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run"
