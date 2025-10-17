@@ -78,5 +78,6 @@ if (!process.env.VERCEL) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const fastifyInstance = await ensureServer();
-  return fastifyInstance(req, res);
+  await fastifyInstance.ready();
+  return fastifyInstance.routing(req, res);
 }
