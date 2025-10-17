@@ -46,6 +46,12 @@ const main = () => {
   const targetPrismaDir = path.join(apiNodeModules, '.prisma');
   const targetVendorDir = path.join(apiNodeModules, '@prisma');
 
+  console.log('[sync-prisma-client] prismaClientEntry:', prismaClientEntry);
+  console.log('[sync-prisma-client] sourcePrismaDir:', sourcePrismaDir);
+  console.log('[sync-prisma-client] sourceVendorDir:', sourceVendorDir);
+  console.log('[sync-prisma-client] targetPrismaDir:', targetPrismaDir);
+  console.log('[sync-prisma-client] targetVendorDir:', targetVendorDir);
+
   copyDir(sourcePrismaDir, targetPrismaDir);
   copyDir(sourceVendorDir, targetVendorDir);
 };
