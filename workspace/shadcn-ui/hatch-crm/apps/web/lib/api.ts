@@ -1,6 +1,46 @@
-const rawApiUrl =
-  process.env.NEXT_PUBLIC_API_URL ?? process.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
-const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl : `${rawApiUrl}/`;
+const stripTrailingSlash = (value: string) => value.replace(/\/+$/, '');
+const ensureTrailingSlash = (value: string) => (value.endsWith('/') ? value : `${value}/`);
+const ensureProtocol = (value: string) => (value.startsWith('http') ? value : `https://${value}`);
+
+const resolveInternalApiUrl = () => {
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.SITE_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    null;
+
+  if (siteUrl) {
+    return `${stripTrailingSlash(ensureProtocol(siteUrl))}/api`;
+  }
+
+  const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL ?? process.env.VERCEL_URL ?? null;
+  if (vercelUrl) {
+    return `${stripTrailingSlash(ensureProtocol(vercelUrl))}/api`;
+  }
+
+  return null;
+};
+
+const explicitApiUrl =
+  process.env.NEXT_PUBLIC_API_URL ?? process.env.VITE_API_BASE_URL ?? process.env.API_URL ?? null;
+
+const computeApiUrl = () => {
+  if (explicitApiUrl) {
+    return explicitApiUrl;
+  }
+
+  if (typeof window === 'undefined') {
+    return resolveInternalApiUrl() ?? 'http://localhost:4000';
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:4000';
+  }
+
+  return `${stripTrailingSlash(window.location.origin)}/api`;
+};
+
+const API_URL = ensureTrailingSlash(computeApiUrl());
 
 interface FetchOptions extends RequestInit {
   token?: string;
