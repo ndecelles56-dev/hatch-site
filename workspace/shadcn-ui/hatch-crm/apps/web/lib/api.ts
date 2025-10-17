@@ -2,20 +2,85 @@ const stripTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 const ensureTrailingSlash = (value: string) => (value.endsWith('/') ? value : `${value}/`);
 const ensureProtocol = (value: string) => (value.startsWith('http') ? value : `https://${value}`);
 
-const resolveInternalApiUrl = () => {
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.SITE_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    null;
-
-  if (siteUrl) {
-    return `${stripTrailingSlash(ensureProtocol(siteUrl))}/api`;
+const inferSiblingApiHost = (url: URL) => {
+  if (url.hostname.includes('-api.')) {
+    return url.hostname;
   }
 
-  const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL ?? process.env.VERCEL_URL ?? null;
-  if (vercelUrl) {
-    return `${stripTrailingSlash(ensureProtocol(vercelUrl))}/api`;
+  if (url.hostname.endsWith('.vercel.app')) {
+    return url.hostname.replace('.vercel.app', '-api.vercel.app');
+  }
+
+  return null;
+};
+
+const normaliseBase = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(stripTrailingSlash(ensureProtocol(value)));
+  } catch {
+    return null;
+  }
+};
+
+const buildApiUrlFromBase = (value: string | null) => {
+  const baseUrl = normaliseBase(value);
+  if (!baseUrl) {
+    return null;
+  }
+
+  const ensureApiPath = (url: URL) => {
+    const currentPath = url.pathname === '/' ? '' : stripTrailingSlash(url.pathname);
+    if (currentPath === '/api') {
+      url.pathname = '/api';
+    } else if (currentPath.endsWith('/api')) {
+      url.pathname = currentPath;
+    } else {
+      url.pathname = `${currentPath || ''}/api`.replace(/\/{2,}/g, '/');
+      if (!url.pathname.startsWith('/')) {
+        url.pathname = `/${url.pathname}`;
+      }
+    }
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  };
+
+  // If the provided value already points at the API host, just normalise the path.
+  if (baseUrl.hostname.includes('-api.') || baseUrl.pathname.includes('/api')) {
+    return ensureApiPath(baseUrl);
+  }
+
+  const siblingHost = inferSiblingApiHost(baseUrl);
+  if (siblingHost) {
+    baseUrl.hostname = siblingHost;
+    baseUrl.pathname = '/';
+    return ensureApiPath(baseUrl);
+  }
+
+  // Fall back to assuming the API is hosted on the same origin under /api.
+  baseUrl.pathname = '/';
+  return ensureApiPath(baseUrl);
+};
+
+const resolveInternalApiUrl = () => {
+  const candidates = [
+    process.env.NEXT_PUBLIC_API_URL,
+    process.env.VITE_API_BASE_URL,
+    process.env.API_URL,
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.SITE_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXT_PUBLIC_VERCEL_URL,
+    process.env.VERCEL_URL
+  ];
+
+  for (const candidate of candidates) {
+    const resolved = buildApiUrlFromBase(candidate ?? null);
+    if (resolved) {
+      return resolved;
+    }
   }
 
   return null;
@@ -37,7 +102,8 @@ const computeApiUrl = () => {
     return 'http://localhost:4000';
   }
 
-  return `${stripTrailingSlash(window.location.origin)}/api`;
+  const inferred = buildApiUrlFromBase(window.location.origin);
+  return inferred ?? `${stripTrailingSlash(window.location.origin)}/api`;
 };
 
 const API_URL = ensureTrailingSlash(computeApiUrl());
