@@ -6,7 +6,7 @@
     "node": "22.x"
   },
   "scripts": {
-    "postinstall": "pnpm --filter @hatch/db run generate",
+    "postinstall": "pnpm --filter @hatch/db run generate && node apps/api/scripts/sync-prisma-client.js",
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
