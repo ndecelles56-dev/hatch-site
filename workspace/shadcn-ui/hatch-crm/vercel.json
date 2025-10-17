@@ -15,6 +15,36 @@
   ],
   "routes": [
     {
+      "src": "/api",
+      "has": [
+        {
+          "type": "host",
+          "value": "hatch-site.vercel.app"
+        }
+      ],
+      "dest": "https://hatch-site-api.vercel.app/api"
+    },
+    {
+      "src": "/api",
+      "has": [
+        {
+          "type": "host",
+          "value": "findyourhatch.com"
+        }
+      ],
+      "dest": "https://hatch-site-api.vercel.app/api"
+    },
+    {
+      "src": "/api",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.findyourhatch.com"
+        }
+      ],
+      "dest": "https://hatch-site-api.vercel.app/api"
+    },
+    {
       "src": "/api/(.*)",
       "has": [
         {
