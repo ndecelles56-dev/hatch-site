@@ -18,6 +18,8 @@ async function createApp(): Promise<NestFastifyApplication> {
     new FastifyAdapter({ logger: false })
   );
 
+  app.setGlobalPrefix('api');
+
   const helmetOptions: FastifyHelmetOptions = { contentSecurityPolicy: false };
   await app.register(helmet as unknown as Parameters<typeof app.register>[0], helmetOptions);
 
