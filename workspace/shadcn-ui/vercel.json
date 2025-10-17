@@ -1,0 +1,39 @@
+{
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "installCommand": "pnpm install --frozen-lockfile",
+        "buildCommand": "pnpm run build",
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "dest": "assets/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "favicon.ico"
+    },
+    {
+      "src": "/favicon.svg",
+      "dest": "favicon.svg"
+    },
+    {
+      "src": "/robots.txt",
+      "dest": "robots.txt"
+    },
+    {
+      "src": "/templates/(.*)",
+      "dest": "templates/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "index.html"
+    }
+  ]
+}

@@ -1,14 +1,6 @@
 {
   "builds": [
     {
-      "src": "../package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "buildCommand": "pnpm install --frozen-lockfile --prod=false && pnpm run build && rm -rf marketing-dist && mv dist marketing-dist",
-        "distDir": "marketing-dist"
-      }
-    },
-    {
       "src": "apps/web/package.json",
       "use": "@vercel/next"
     },
@@ -22,54 +14,8 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "has": [
-        { "type": "host", "value": "hatch-site-api.vercel.app" }
-      ],
-      "dest": "api/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "has": [
-        { "type": "host", "value": "api.findyourhatch.com" }
-      ],
-      "dest": "api/index.js"
-    },
-    {
       "src": "/api/(.*)",
       "dest": "api/index.js"
-    },
-    {
-      "src": "/_next/(.*)",
-      "dest": "apps/web/_next/$1"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "marketing-dist/favicon.ico"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "marketing-dist/assets/$1"
-    },
-    {
-      "src": "/favicon.svg",
-      "dest": "marketing-dist/favicon.svg"
-    },
-    {
-      "src": "/robots.txt",
-      "dest": "marketing-dist/robots.txt"
-    },
-    {
-      "src": "/templates/(.*)",
-      "dest": "marketing-dist/templates/$1"
-    },
-    {
-      "src": "/((dashboard|people|tour-booker|login|magic-link|agreements|mls)(/.*)?)",
-      "dest": "apps/web/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "marketing-dist/index.html"
     }
   ]
 }
