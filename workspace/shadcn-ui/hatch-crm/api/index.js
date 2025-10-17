@@ -1,7 +1,7 @@
 const path = require('path');
 
-const compiledEntry = path.join(__dirname, '../apps/api/dist/apps/api/src/main');
-const sourceEntry = path.join(__dirname, '../apps/api/src/main');
+const compiledEntry = path.join(__dirname, '..', 'apps', 'api', 'dist', 'apps', 'api', 'src', 'main.js');
+const sourceEntry = path.join(__dirname, '..', 'apps', 'api', 'src', 'main.ts');
 
 const preferCompiled = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 
