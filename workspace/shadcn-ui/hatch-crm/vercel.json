@@ -3,20 +3,12 @@
     {
       "src": "apps/web/package.json",
       "use": "@vercel/next"
-    },
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": "apps/api/dist/**",
-        "excludeFiles": "apps/api/src/**"
-      }
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "api/index.js"
+      "dest": "https://hatch-site-api.vercel.app/api/$1"
     }
   ]
 }
