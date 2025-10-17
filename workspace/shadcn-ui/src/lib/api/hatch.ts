@@ -1,11 +1,13 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`;
 
 interface FetchOptions extends RequestInit {
   token?: string;
 }
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const url = new URL(path, API_BASE_URL);
+  const sanitizedPath = path.replace(/^\//, '');
+  const url = new URL(sanitizedPath, API_BASE_URL);
   const headers = new Headers(options.headers);
 
   if (!headers.has('x-user-role')) {

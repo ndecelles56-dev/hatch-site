@@ -1,12 +1,14 @@
-const API_URL =
+const rawApiUrl =
   process.env.NEXT_PUBLIC_API_URL ?? process.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl : `${rawApiUrl}/`;
 
 interface FetchOptions extends RequestInit {
   token?: string;
 }
 
 export async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const url = `${API_URL}${path}`;
+  const sanitizedPath = path.replace(/^\//, '');
+  const url = `${API_URL}${sanitizedPath}`;
   const headers = new Headers(options.headers);
 
   if (!headers.has('x-user-role')) {
