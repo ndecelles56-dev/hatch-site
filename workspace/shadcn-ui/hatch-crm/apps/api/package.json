@@ -5,7 +5,7 @@
     "dev": "nest start --watch --entryFile apps/api/src/main",
     "build": "pnpm run prisma:generate && pnpm exec nest build",
     "build:dist": "pnpm run prisma:generate && pnpm exec nest build",
-    "prisma:generate": "pnpm --filter @hatch/db run generate && pnpm exec prisma generate --schema ../../packages/db/prisma/schema.prisma",
+    "prisma:generate": "pnpm --filter @hatch/db run generate && npx prisma generate --schema ../../packages/db/prisma/schema.prisma",
     "start": "node dist/apps/api/src/main.js",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "jest --runInBand",
